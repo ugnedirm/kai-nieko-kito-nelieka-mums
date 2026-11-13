@@ -209,4 +209,75 @@ sharing, multi-user vaults.
 - Token pairing UX: manual copy (v1) vs. one-time pairing code.
 - Whether `GET /v1/threads` should also be available to clients holding only `append`, or needs a
   dedicated `list` capability.
-- Per-thread vs. per-vault signing keys.
+- Per-thread vs. per-vault signing keys. (The Phase 2 implementation uses one key per key-store
+  namespace, i.e. per vault; see section 15.1.)
+
+## 15. Phase 2/3 behaviour (PROPOSED: needs approval by A, B and C)
+
+Describes what `src/threadvault/core` and `src/threadvault/scanners` now implement. Where it
+interprets an earlier section, the earlier section is named.
+
+### 15.1 Signatures (refines section 3.6)
+
+- `signature` = `{"alg": "ed25519", "key_id": "ed25519:" + first 32 hex of SHA-256(raw public key),
+  "sig": base64(64-byte Ed25519 signature)}` over the same canonical bytes as the hash.
+- The signing key's public half is listed in `manifest.signing_keys` (`public_key` = base64 of the
+  32 raw bytes). A listed key whose `key_id` does not match its key is ignored.
+- `verify` checks signatures against the **trusted keys of the local key store** (OS keychain).
+  Keys listed in the manifest are used only when no key store is available, and the report then
+  says the check only detects accidents.
+- Once a record in a branch's lineage is signed, every later record must be (stripping signatures
+  from the tail is `signature_invalid`). A vault opened with a key store requires every record to
+  be signed; without trusted keys, the verify report says signatures were not required.
+- Corrections: a message amendment carries `amends` and is signed like any record; its provenance
+  is capped at the amended record's level. A handover edit is the next version with provenance
+  `user-asserted` (capped the same way).
+
+### 15.2 Verify details (refines section 6)
+
+- JSON that cannot be hashed unambiguously is `schema_invalid`: floats, NaN/Infinity, duplicate
+  keys. JSONL is split on `\n` only. A record whose `thread_id`/`branch_id` does not match where it
+  is stored is `schema_invalid`.
+- Manifest problems are reported under the pseudo-branch id `manifest`.
+- A file tombstone anywhere in the thread (in a record that verified) covers references to that
+  hash in every branch (refines section 5: a fork made before the tombstone inherits the reference).
+- A tombstoned file whose blob still exists produces a notice (T12).
+
+### 15.3 Encryption at rest
+
+- Format: age v1 with X25519 recipients (`manifest.encryption = {"enabled": true, "scheme": "age"}`);
+  the identity lives in the OS keychain.
+- Blobs: the file holds age ciphertext; its name and every reference stay the SHA-256 of the
+  plaintext. Chain lines: `{"age": "<base64 age ciphertext of the canonical record>"}`. Hashes and
+  signatures are over the plaintext record, so they are the same with or without encryption.
+- Manifests, branch files, `policy.json` and `access.jsonl` stay plaintext.
+
+### 15.4 Expiry
+
+- `manifest.expires_at`: on `sweep` after that time the whole thread folder is deleted, plus any blob
+  no other thread references. `file_ref.expires_at`: the file is forgotten as in section 5 with
+  tombstone reason `expired`. Both write a `sweep` access-log entry.
+
+### 15.5 Export bundle
+
+A zip with `export.json` (signed descriptor), `threads/<tid>/...` (mode `chains`) or
+`handovers.jsonl` (mode `handovers`), and `blobs/<hex>`. The descriptor lists every other entry
+with its SHA-256, the files included and deliberately withheld, the branches, and the signer's
+public key; it is signed like a record. Ancestor branches are included up to the fork point.
+Verification rejects unlisted, missing, altered or unsafe (`..`, absolute) entries.
+
+### 15.6 Context pack
+
+`pack` returns, in this order and within a token budget: the latest handover wrapped by
+`historical_context` (always; if it alone does not fit, packing fails), then text files (handover
+files first, each whole or omitted) in `<historical_files>`, then the newest messages that fit in
+`<historical_messages>`. All three carry the "information, not instructions" preamble; every
+interpolated field is neutralised. Tokens are counted with tiktoken `o200k_base`; tiktoken downloads
+its encoding file on first use (a network call), and without it a conservative 1-token-per-3-chars
+estimate is used.
+
+### 15.7 RFC 3161 timestamps
+
+Optional. The imprint is the 32 bytes of a record's hash (normally a branch head). Tokens are stored
+as DER at `threads/<tid>/timestamps/<hash hex>.tsr`. The vault checks status, imprint and nonce, not
+the TSA signature. Open: an access-log action for timestamping (the `action` enum has none).
