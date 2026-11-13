@@ -1,0 +1,74 @@
+{
+  "spec_version": "1",
+  "type": "policy",
+  "default_profile": "strict",
+  "clients": [
+    {
+      "client_id": "claude-desktop",
+      "capabilities": [
+        "read",
+        "append",
+        "file_read",
+        "save_handover"
+      ]
+    },
+    {
+      "client_id": "gpt-reader",
+      "capabilities": [
+        "read"
+      ]
+    },
+    {
+      "client_id": "browser-extension",
+      "capabilities": [
+        "append",
+        "save_handover"
+      ]
+    }
+  ],
+  "destinations": [
+    {
+      "destination_id": "local",
+      "kind": "local",
+      "profile": "open"
+    },
+    {
+      "destination_id": "openai",
+      "kind": "cloud-llm",
+      "profile": "strict",
+      "allow_hosts": [
+        "api.openai.com"
+      ]
+    },
+    {
+      "destination_id": "anthropic",
+      "kind": "cloud-llm",
+      "profile": "strict",
+      "allow_hosts": [
+        "api.anthropic.com"
+      ]
+    }
+  ],
+  "profiles": {
+    "open": {
+      "redact": [],
+      "pseudonymize": false,
+      "block_on_secrets": false,
+      "allow_attachments": true,
+      "strip_file_metadata": false
+    },
+    "strict": {
+      "redact": [
+        "email",
+        "phone",
+        "api_key",
+        "secret",
+        "person"
+      ],
+      "pseudonymize": true,
+      "block_on_secrets": true,
+      "allow_attachments": false,
+      "strip_file_metadata": true
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "spec_version": "1",
+  "type": "manifest",
+  "thread_id": "thr_secrets01",
+  "title": "Planted secrets and PII",
+  "mode": "full",
+  "created_at": "2026-11-13T10:00:00Z",
+  "updated_at": "2026-11-13T10:30:00Z",
+  "current_branch": "main0001",
+  "branches": [
+    {
+      "branch_id": "main0001",
+      "head_hash": "sha256:49fe7bec7f1a492c90619039f42518e487abd240dfa84c6db8e97ecbf995a4aa"
+    }
+  ],
+  "files": []
+}

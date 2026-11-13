@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/common.schema.json",
+  "title": "Shared definitions",
+  "description": "Reusable definitions. Hash rule: every `hash` field = 'sha256:' + hex SHA-256 of the RFC 8785 (JCS) canonical JSON of the object with its `hash` and `signature` fields removed. `prev_hash` links to the previous record's `hash` in the same chain (null for the first).",
+  "$defs": {
+    "spec_version": { "const": "1" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" },
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "nullable_hash": {
+      "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "text": { "type": "string", "maxLength": 4000 },
+    "note": { "type": "string", "maxLength": 500 },
+    "provenance": {
+      "description": "How much the record can be trusted. provider-verified: came straight from a provider API response. ai-summary-user-saved: written by an AI, reviewed and saved by the user. user-asserted: typed or pasted by the user. imported-unverified: from an export file; authorship cannot be proven.",
+      "enum": [
+        "provider-verified",
+        "ai-summary-user-saved",
+        "user-asserted",
+        "imported-unverified"
+      ]
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["ai", "human", "tool", "system"] },
+        "provider": { "type": "string", "maxLength": 64 },
+        "model": { "type": "string", "maxLength": 128 },
+        "client": { "type": "string", "maxLength": 128 }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alg", "key_id", "sig"],
+      "properties": {
+        "alg": { "const": "ed25519" },
+        "key_id": { "type": "string", "maxLength": 128 },
+        "sig": { "type": "string", "pattern": "^[A-Za-z0-9+/=_-]{43,100}$" }
+      }
+    },
+    "file_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "name", "media_type", "size"],
+      "properties": {
+        "sha256": { "$ref": "#/$defs/hash" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "media_type": { "type": "string", "maxLength": 127 },
+        "size": { "type": "integer", "minimum": 0 },
+        "expires_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "capability": {
+      "enum": ["read", "append", "file_read", "save_handover", "export", "forget", "network"]
+    },
+    "finding": {
+      "description": "Scanner/redaction result. Never contains the matched secret itself, only where it was found.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "severity", "path"],
+      "properties": {
+        "kind": { "type": "string", "maxLength": 64 },
+        "severity": { "enum": ["low", "medium", "high"] },
+        "path": { "type": "string", "maxLength": 256 },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "detail": { "$ref": "#/$defs/note" }
+      }
+    }
+  }
+}

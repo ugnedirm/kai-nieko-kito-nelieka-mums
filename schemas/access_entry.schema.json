@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/access_entry.schema.json",
+  "title": "Access log entry",
+  "description": "One line of access.jsonl (vault-wide, append-only, hash-chained). `detail` must never contain message content, file content or secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "type", "seq", "ts", "actor", "action", "outcome", "prev_hash", "hash"],
+  "properties": {
+    "spec_version": { "$ref": "common.schema.json#/$defs/spec_version" },
+    "type": { "const": "access" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "ts": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client_id", "kind"],
+      "properties": {
+        "client_id": { "type": "string", "maxLength": 128 },
+        "kind": { "enum": ["ai", "cli", "extension", "ui"] }
+      }
+    },
+    "thread_id": { "$ref": "common.schema.json#/$defs/id" },
+    "action": {
+      "enum": [
+        "list", "load", "append", "get_file", "save_handover", "ingest",
+        "export", "forget", "sweep", "verify", "fork", "send_to_model"
+      ]
+    },
+    "outcome": { "enum": ["allowed", "denied", "error"] },
+    "detail": { "$ref": "common.schema.json#/$defs/note" },
+    "prev_hash": { "$ref": "common.schema.json#/$defs/nullable_hash" },
+    "hash": { "$ref": "common.schema.json#/$defs/hash" }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/branch.schema.json",
+  "title": "Branch",
+  "description": "branches/<branch_id>.json. A fork shares history up to fork_point and diverges after it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "type", "branch_id", "thread_id", "label", "parent", "created_at", "created_by"],
+  "properties": {
+    "spec_version": { "$ref": "common.schema.json#/$defs/spec_version" },
+    "type": { "const": "branch" },
+    "branch_id": { "$ref": "common.schema.json#/$defs/id" },
+    "thread_id": { "$ref": "common.schema.json#/$defs/id" },
+    "label": { "type": "string", "maxLength": 100 },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "created_by": { "$ref": "common.schema.json#/$defs/author" },
+    "parent": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["branch_id", "fork_point"],
+          "properties": {
+            "branch_id": { "$ref": "common.schema.json#/$defs/id" },
+            "fork_point": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "hash"],
+                  "properties": {
+                    "kind": { "const": "message" },
+                    "hash": { "$ref": "common.schema.json#/$defs/hash" }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "version"],
+                  "properties": {
+                    "kind": { "const": "handover" },
+                    "version": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

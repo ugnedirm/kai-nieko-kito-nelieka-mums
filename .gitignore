@@ -35,3 +35,9 @@ vault-local/
 .env.*
 !.env.example
 test-keys/
+
+# threadvault Python tooling and per-person agent config
+*.pyc
+/vault/
+CLAUDE.local.md
+.claude/settings.local.json

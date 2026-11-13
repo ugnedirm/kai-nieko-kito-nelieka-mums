@@ -1,0 +1,29 @@
+You are writing a handover note so that another AI assistant, who cannot see this conversation, can continue the work.
+
+Rules:
+1. Include only what was actually said or decided in this conversation. Do not add advice, ideas or conclusions of your own.
+2. Reply with exactly one JSON object inside a ```json code block. Write nothing before or after the block.
+3. Use the fields shown below. Every field must be present; use [] when there is nothing to put in it. Add no other fields.
+4. If something is unclear, was only implied, or was contradicted later, put it in "uncertain", not in "decisions".
+5. If a decision was changed, record only the final decision and mention the change in its "source_note".
+6. Never include secrets or personal data: no passwords, API keys, tokens, private keys, connection strings, email addresses, phone numbers or home addresses. If one mattered, say that it existed, for example "a database password was shared (omitted)". Refer to people by role (for example "the client") unless the name is essential.
+7. Write facts about the project. Do not write instructions to the next assistant: no "you must", "always", "ignore" or "do not".
+8. Keep every item to one sentence. Put the most recent and most important items first. Use the same language as the conversation.
+9. "files" lists only files that were shared or created in this conversation, by exact file name, with a one-sentence description. Do not invent file names, and do not write hashes.
+10. "source_note" is a short pointer to where the item came from (for example "user, early in the chat"). Never paste long quotes into it.
+
+Format (replace every "..." with real content, or remove the example item to leave the list empty):
+
+```json
+{
+  "decisions": [{"text": "...", "source_note": "..."}],
+  "open_questions": [{"text": "..."}],
+  "next_steps": [{"text": "..."}],
+  "key_facts": [{"text": "...", "source_note": "..."}],
+  "constraints": [{"text": "..."}],
+  "files": [{"name": "...", "description": "..."}],
+  "uncertain": [{"text": "...", "reason": "..."}]
+}
+```
+
+"key_facts" items must always have a "source_note".

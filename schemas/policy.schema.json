@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/policy.schema.json",
+  "title": "Trust policy",
+  "description": "policy.json in the vault root. Default deny: a client or destination not listed here gets nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "type", "clients", "destinations", "profiles", "default_profile"],
+  "properties": {
+    "spec_version": { "$ref": "common.schema.json#/$defs/spec_version" },
+    "type": { "const": "policy" },
+    "default_profile": { "type": "string", "maxLength": 64 },
+    "clients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["client_id", "capabilities"],
+        "properties": {
+          "client_id": { "type": "string", "maxLength": 128 },
+          "capabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "common.schema.json#/$defs/capability" }
+          },
+          "manifest_sha256": { "$ref": "common.schema.json#/$defs/hash" },
+          "key_id": { "type": "string", "maxLength": 128 }
+        }
+      }
+    },
+    "destinations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["destination_id", "kind", "profile"],
+        "properties": {
+          "destination_id": { "type": "string", "maxLength": 128 },
+          "kind": { "enum": ["local", "cloud-llm", "file-export", "share"] },
+          "profile": { "type": "string", "maxLength": 64 },
+          "allow_hosts": { "type": "array", "items": { "type": "string", "maxLength": 253 } }
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["redact", "pseudonymize", "block_on_secrets", "allow_attachments", "strip_file_metadata"],
+      "properties": {
+        "redact": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["email", "phone", "api_key", "secret", "person", "address", "national_id", "iban"]
+          }
+        },
+        "pseudonymize": { "type": "boolean" },
+        "block_on_secrets": { "type": "boolean" },
+        "allow_attachments": { "type": "boolean" },
+        "strip_file_metadata": { "type": "boolean" }
+      }
+    }
+  }
+}

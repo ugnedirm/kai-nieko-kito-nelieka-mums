@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/handover.schema.json",
+  "title": "Handover (versioned)",
+  "description": "The AI-written summary of a thread. Untrusted input to any AI that loads it: always wrap as historical context, never as instructions. Each version is chained to the previous one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_version", "type", "thread_id", "branch_id", "version",
+    "prev_hash", "hash", "content", "metadata"
+  ],
+  "properties": {
+    "spec_version": { "$ref": "common.schema.json#/$defs/spec_version" },
+    "type": { "const": "handover" },
+    "thread_id": { "$ref": "common.schema.json#/$defs/id" },
+    "branch_id": { "$ref": "common.schema.json#/$defs/id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "prev_hash": { "$ref": "common.schema.json#/$defs/nullable_hash" },
+    "hash": { "$ref": "common.schema.json#/$defs/hash" },
+    "content": { "$ref": "#/$defs/content" },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "signature": { "$ref": "common.schema.json#/$defs/signature" }
+  },
+  "$defs": {
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "$ref": "common.schema.json#/$defs/text" },
+        "source_note": { "$ref": "common.schema.json#/$defs/note" }
+      }
+    },
+    "sourced_statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "source_note"],
+      "properties": {
+        "text": { "$ref": "common.schema.json#/$defs/text" },
+        "source_note": { "$ref": "common.schema.json#/$defs/note" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisions", "open_questions", "next_steps", "key_facts",
+        "files", "constraints", "uncertain"
+      ],
+      "properties": {
+        "decisions": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/statement" } },
+        "open_questions": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/statement" } },
+        "next_steps": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/statement" } },
+        "key_facts": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/sourced_statement" } },
+        "constraints": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/statement" } },
+        "files": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sha256", "name", "description"],
+            "properties": {
+              "sha256": { "$ref": "common.schema.json#/$defs/hash" },
+              "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "description": { "$ref": "common.schema.json#/$defs/note" }
+            }
+          }
+        },
+        "uncertain": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text"],
+            "properties": {
+              "text": { "$ref": "common.schema.json#/$defs/text" },
+              "reason": { "$ref": "common.schema.json#/$defs/note" }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "created_at", "thread_state", "prompt_version", "provenance"],
+      "properties": {
+        "author": { "$ref": "common.schema.json#/$defs/author" },
+        "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "prompt_version": { "type": "string", "maxLength": 32 },
+        "provenance": { "$ref": "common.schema.json#/$defs/provenance" },
+        "thread_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source"],
+          "properties": {
+            "source": { "enum": ["live-chat", "imported", "agent"] },
+            "message_count": { "type": "integer", "minimum": 0 },
+            "last_message_hash": { "$ref": "common.schema.json#/$defs/hash" },
+            "user_reviewed": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

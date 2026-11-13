@@ -1,0 +1,17 @@
+{
+  "spec_version": "1",
+  "type": "manifest",
+  "thread_id": "thr_full0001",
+  "title": "CLI design (full)",
+  "mode": "full",
+  "created_at": "2026-11-13T10:00:00Z",
+  "updated_at": "2026-11-13T10:30:00Z",
+  "current_branch": "main0001",
+  "branches": [
+    {
+      "branch_id": "main0001",
+      "head_hash": "sha256:14ba03effb987ca79f28b0cc4b268aa98509aafb6b0d4055bc1ea196c09f10fb"
+    }
+  ],
+  "files": []
+}

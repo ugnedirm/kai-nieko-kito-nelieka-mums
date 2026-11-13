@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://threadvault.example/schemas/1/ingest_response.schema.json",
+  "title": "Extension ingest response",
+  "description": "accepted: stored. needs_confirmation: scanner findings; the extension shows them and may resend with user_reviewed=true. rejected: blocked by policy or invalid.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "type", "request_id", "status", "findings"],
+  "properties": {
+    "spec_version": { "$ref": "common.schema.json#/$defs/spec_version" },
+    "type": { "const": "ingest_response" },
+    "request_id": { "$ref": "common.schema.json#/$defs/id" },
+    "status": { "enum": ["accepted", "needs_confirmation", "rejected"] },
+    "thread_id": { "$ref": "common.schema.json#/$defs/id" },
+    "stored_hash": { "$ref": "common.schema.json#/$defs/hash" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/finding" }
+    },
+    "error": { "$ref": "common.schema.json#/$defs/note" }
+  }
+}

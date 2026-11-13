@@ -1,0 +1,18 @@
+{
+  "spec_version": "1",
+  "type": "branch",
+  "branch_id": "fork0001",
+  "thread_id": "thr_forked01",
+  "label": "fork0001",
+  "parent": {
+    "branch_id": "main0001",
+    "fork_point": {
+      "kind": "message",
+      "hash": "sha256:6988e2ac760ff384a5253764b4a369d3bfb00794eea80439035b6742e81d8685"
+    }
+  },
+  "created_at": "2026-11-13T10:00:00Z",
+  "created_by": {
+    "kind": "human"
+  }
+}

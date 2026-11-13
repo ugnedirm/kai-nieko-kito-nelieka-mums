@@ -1,0 +1,24 @@
+{
+  "spec_version": "1",
+  "type": "manifest",
+  "thread_id": "thr_handover01",
+  "title": "Trip planning (handover only)",
+  "mode": "handover",
+  "created_at": "2026-11-13T10:00:00Z",
+  "updated_at": "2026-11-13T10:30:00Z",
+  "current_branch": "main0001",
+  "branches": [
+    {
+      "branch_id": "main0001",
+      "head_hash": "sha256:dfa3c3201cc6c8e602291b032c10f8fdda12ba1e9289819fbe73d21da3635f4e"
+    }
+  ],
+  "files": [
+    {
+      "sha256": "sha256:61e5f9213e9e4898a085affafa383c255c409a5c842f68f9b543d70b7b27d273",
+      "name": "trip-notes.txt",
+      "media_type": "text/plain",
+      "size": 44
+    }
+  ]
+}

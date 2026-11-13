@@ -1,0 +1,12 @@
+{
+  "spec_version": "1",
+  "type": "branch",
+  "branch_id": "main0001",
+  "thread_id": "thr_tamper01",
+  "label": "main0001",
+  "parent": null,
+  "created_at": "2026-11-13T10:00:00Z",
+  "created_by": {
+    "kind": "human"
+  }
+}

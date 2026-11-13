@@ -1,0 +1,17 @@
+{
+  "spec_version": "1",
+  "type": "manifest",
+  "thread_id": "thr_tomb0001",
+  "title": "Forgotten file",
+  "mode": "handover",
+  "created_at": "2026-11-13T10:00:00Z",
+  "updated_at": "2026-11-13T10:30:00Z",
+  "current_branch": "main0001",
+  "branches": [
+    {
+      "branch_id": "main0001",
+      "head_hash": "sha256:26ded97524b10fe976a69ab08d28f2955a6b748fda7b403ddd61b9feb5ec583e"
+    }
+  ],
+  "files": []
+}

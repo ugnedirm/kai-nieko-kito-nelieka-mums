@@ -1,0 +1,49 @@
+{
+  "thr_handover01": {
+    "mode": "handover",
+    "verify": "ok",
+    "planted": []
+  },
+  "thr_full0001": {
+    "mode": "full",
+    "verify": "ok",
+    "planted": []
+  },
+  "thr_forked01": {
+    "mode": "full",
+    "verify": "ok",
+    "planted": [],
+    "branches": [
+      "main0001",
+      "fork0001"
+    ]
+  },
+  "thr_tamper01": {
+    "mode": "full",
+    "verify": "fail",
+    "reason": "hash_mismatch",
+    "at_seq": 1,
+    "planted": []
+  },
+  "thr_secrets01": {
+    "mode": "full",
+    "verify": "ok",
+    "planted": [
+      "email",
+      "phone",
+      "person",
+      "api_key",
+      "connection_string",
+      "private_key",
+      "prompt_injection"
+    ]
+  },
+  "thr_tomb0001": {
+    "mode": "handover",
+    "verify": "ok",
+    "planted": [],
+    "tombstoned_files": [
+      "sha256:065ea614f0a78cc0760166cd555e1475f1e137dd81632135e2d9f890329884b5"
+    ]
+  }
+}

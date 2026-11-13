@@ -1,0 +1,21 @@
+{
+  "spec_version": "1",
+  "type": "manifest",
+  "thread_id": "thr_forked01",
+  "title": "Encryption question (forked)",
+  "mode": "full",
+  "created_at": "2026-11-13T10:00:00Z",
+  "updated_at": "2026-11-13T10:30:00Z",
+  "current_branch": "main0001",
+  "branches": [
+    {
+      "branch_id": "main0001",
+      "head_hash": "sha256:a1c0d631a5cf54a2920ea8eb3e739ceb2b96a5eae5adf752cff92868f018d55e"
+    },
+    {
+      "branch_id": "fork0001",
+      "head_hash": "sha256:b176481f761eae4fb114ec56b4bd5b41d2042b2aea49bd5ae77b16ad92fbade5"
+    }
+  ],
+  "files": []
+}

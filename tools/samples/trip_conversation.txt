@@ -1,0 +1,10 @@
+user: I'm planning a 5-day trip to Portugal in May with my sister. Budget is about 1200 EUR each, flights not included.
+assistant: Lisbon and Porto are a good pair. Do you want to rent a car or use trains?
+user: Trains. We don't want to drive. Also we both hate early mornings, so nothing before 9am.
+assistant: Then Lisbon for 3 nights and Porto for 2. The Alfa Pendular train takes about 3 hours and has departures after 9.
+user: Good. Let's go with Lisbon first. I wrote some notes in trip-notes.txt about places we want to see.
+assistant: Noted. One question: do you prefer hotels or apartments?
+user: Not sure yet, maybe apartments. My sister mentioned a pet allergy, so no places with cats.
+assistant: Understood. Next steps could be booking flights, then the train tickets, then the accommodation.
+user: Actually, let's make it 6 days instead of 5, we found a cheaper flight on the Sunday.
+assistant: Then Lisbon 3 nights and Porto 3 nights. I'll note the total is now 6 days. Still undecided: hotel vs apartment, and the exact dates.
