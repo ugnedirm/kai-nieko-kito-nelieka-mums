@@ -7,7 +7,9 @@ from html import escape
 
 from threadvault.types import Record
 
-_TAG = re.compile(r"<(/?)\s*historical_context", re.IGNORECASE)
+# Every wrapper tag threadvault emits. Content must never be able to open or close any of them.
+WRAPPER_TAGS = ("historical_context", "historical_files", "historical_messages")
+_TAG = re.compile(r"<(\s*/?)\s*(historical_(?:context|files|messages))", re.IGNORECASE)
 
 _SECTIONS = [
     ("decisions", "Decisions"),
@@ -20,7 +22,12 @@ _SECTIONS = [
 
 def _neutralize(text: str) -> str:
     """Make sure content can never open or close our wrapper tag."""
-    return _TAG.sub(lambda m: f"&lt;{m.group(1)}historical_context", text)
+    return _TAG.sub(lambda m: f"&lt;{m.group(1).strip()}{m.group(2)}", text)
+
+
+def neutralize(text: str) -> str:
+    """Public form of the wrapper-tag neutraliser, for other renderers (e.g. the context pack)."""
+    return _neutralize(text)
 
 
 def handover_text(handover: Record) -> str:
@@ -54,6 +61,59 @@ def historical_context(handover: Record, *, verified: bool) -> str:
     )
 
 
+def _plain(value: object) -> str:
+    """One-line, printable, wrapper-safe form of a short field (title, model, file name, media
+    type). Every field interpolated into AI-facing text must go through this."""
+    text = "".join(ch if ch.isprintable() else " " for ch in str(value))
+    return _neutralize(text)
+
+
+def plain(value: object) -> str:
+    return _plain(value)
+
+
 def message_line(msg: Record) -> str:
-    who = msg["author"].get("model") or msg["author"]["kind"]
-    return f"[{msg['seq']} {msg['role']}/{who}] {_neutralize(msg['content'])}"
+    who = _plain(msg["author"].get("model") or msg["author"]["kind"])
+    amends = f" (amends {_plain(msg['amends'])})" if msg.get("amends") else ""
+    return f"[{int(msg['seq'])} {_plain(msg['role'])}/{who}]{amends} {_neutralize(msg['content'])}"
+
+
+def thread_text(manifest: Record, branch_id: str, records: list[Record], *,
+                verified: bool | None = None, notices: list[str] | None = None) -> str:
+    """Human-readable view of one branch: header, messages, tombstones, latest handover, files.
+
+    This is for people (the CLI's `show`). To give a thread to an AI use the context pack, which
+    wraps everything as historical context.
+    """
+    status = {True: "verified", False: "VERIFY FAILED", None: "not verified"}[verified]
+    lines = [f"Thread: {_plain(manifest['title'])} ({manifest['thread_id']})",
+             f"Mode: {manifest['mode']}   Branch: {branch_id}   Status: {status}"]
+    if manifest.get("expires_at"):
+        lines.append(f"Expires: {manifest['expires_at']}")
+    lines += [f"Note: {n}" for n in notices or []]
+    lines.append("")
+    forgotten = {r["target"].get("sha256") or r["target"].get("id"): r for r in records
+                 if r["type"] == "tombstone"}
+    for r in records:
+        if r["type"] == "message":
+            lines.append(message_line(r))
+        elif r["type"] == "tombstone":
+            t = r["target"]
+            what = t.get("sha256") if t["kind"] == "file" else t.get("id")
+            lines.append(f"[removed {t['kind']} {what}: {r['reason']} at {r['removed_at']}]")
+    handovers = [r for r in records if r["type"] == "handover"]
+    if handovers:
+        h = handovers[-1]
+        meta = h["metadata"]
+        who = meta["author"].get("model") or meta["author"]["kind"]
+        lines.append(f"--- handover v{h['version']} by {_plain(who)} at {meta['created_at']} "
+                     f"({meta['provenance']}) ---")
+        lines.append(handover_text(h))
+    if manifest.get("files"):
+        lines.append("--- files ---")
+        for f in manifest["files"]:
+            gone = " [forgotten]" if f["sha256"] in forgotten else ""
+            exp = f" expires {f['expires_at']}" if f.get("expires_at") else ""
+            lines.append(f"- {_plain(f['name'])} ({f['media_type']}, {f['size']} bytes) "
+                         f"{f['sha256']}{exp}{gone}")
+    return "\n".join(lines)
