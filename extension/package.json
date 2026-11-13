@@ -1,0 +1,7 @@
+{
+  "name": "threadvault-extension",
+  "private": true,
+  "version": "0.1.0",
+  "description": "No dependencies on purpose: nothing to supply-chain. Tests: node --test test/*.test.js",
+  "scripts": { "test": "node --test test/*.test.js", "build": "node tools/build.mjs" }
+}
