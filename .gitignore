@@ -1,0 +1,37 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+htmlcov/
+build/
+
+# Node / extension
+node_modules/
+dist/
+extension/web-ext-artifacts/
+*.zip
+*.xpi
+
+# Local vaults, keys, tokens (never commit)
+.vault/
+vault-local/
+*.key
+*.pem
+.ingest-token
+.env
+.env.*
+!.env.example
+test-keys/
