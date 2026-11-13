@@ -1,0 +1,4 @@
+# Content-addressed fixtures must be byte-exact on every OS: a blob's file name is the SHA-256 of
+# its bytes, so a CRLF conversion on checkout makes verify report blob_hash_mismatch.
+* text=auto eol=lf
+tests/fixtures/** -text
