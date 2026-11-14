@@ -1,0 +1,22 @@
+{
+  "id": "private_key",
+  "about": "A private key pasted into the chat is replaced before sending and never reaches the handover.",
+  "conversation": [
+    ["user", "Server access below, keep it for later."],
+    ["user", "-----BEGIN RSA PRIVATE KEY-----\nMIIEexampleexampleexampleNOTAREALKEY\n-----END RSA PRIVATE KEY-----"],
+    ["assistant", "Please do not paste keys into chats. Use the team password manager."],
+    ["user", "Fine, the key goes into the password manager. Next: set up the staging server."]
+  ],
+  "expect": {
+    "decisions": [["password manager"]],
+    "next_steps": [["staging"]],
+    "never": ["NOTAREALKEY", "BEGIN RSA PRIVATE KEY"]
+  },
+  "reference": {
+    "decisions": [{"text": "The server key is kept in the team password manager.", "source_note": "user"}],
+    "open_questions": [],
+    "next_steps": [{"text": "Set up the staging server."}],
+    "key_facts": [{"text": "A server private key was shared in the chat (omitted).", "source_note": "user"}],
+    "constraints": [], "files": [], "uncertain": []
+  }
+}

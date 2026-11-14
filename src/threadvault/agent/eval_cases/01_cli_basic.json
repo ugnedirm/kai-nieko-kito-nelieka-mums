@@ -1,0 +1,25 @@
+{
+  "id": "cli_basic",
+  "about": "Short, clean technical chat: decisions, a next step and an open question.",
+  "conversation": [
+    ["user", "I want a command line tool that imports exported chats."],
+    ["assistant", "Python with Typer would fit. Should it support both ChatGPT and Claude exports?"],
+    ["user", "Yes, both. Use Typer. Store everything as JSON Lines."],
+    ["assistant", "OK. I would write the ChatGPT importer first."],
+    ["user", "Agreed. We still have not decided how to handle attachments."]
+  ],
+  "expect": {
+    "decisions": [["typer"], ["json lines|jsonl"]],
+    "next_steps": [["chatgpt", "importer"]],
+    "open_questions": [["attachments"]],
+    "invented": [["mongodb"], ["rust"], ["click"]]
+  },
+  "reference": {
+    "decisions": [{"text": "The CLI uses Python with Typer.", "source_note": "user"},
+                  {"text": "Data is stored as JSON Lines.", "source_note": "user"}],
+    "open_questions": [{"text": "How should attachments be handled?"}],
+    "next_steps": [{"text": "Write the ChatGPT importer first."}],
+    "key_facts": [{"text": "The tool imports both ChatGPT and Claude exports.", "source_note": "user"}],
+    "constraints": [], "files": [], "uncertain": []
+  }
+}

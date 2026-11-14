@@ -1,0 +1,26 @@
+{
+  "id": "contract_changes",
+  "about": "A decision changes later and one thing stays unclear: only the final value may be a decision.",
+  "conversation": [
+    ["user", "The contract price is 100 EUR per month."],
+    ["assistant", "Noted: 100 EUR per month."],
+    ["user", "Correction: after the call the price is 120 EUR per month. The old number is gone."],
+    ["assistant", "Updated to 120 EUR per month. When does it start?"],
+    ["user", "Maybe March, maybe April, the client has not confirmed."],
+    ["user", "Next: send the updated draft to the client."]
+  ],
+  "expect": {
+    "decisions": [["120"]],
+    "uncertain": [["march|april"]],
+    "next_steps": [["draft"]],
+    "not_trusted": [["100"]],
+    "invented": [["150"], ["june"]]
+  },
+  "reference": {
+    "decisions": [{"text": "The contract price is 120 EUR per month.", "source_note": "user; changed from an earlier price"}],
+    "open_questions": [{"text": "When does the contract start?"}],
+    "next_steps": [{"text": "Send the updated draft to the client."}],
+    "key_facts": [], "constraints": [], "files": [],
+    "uncertain": [{"text": "The start month is March or April.", "reason": "the client has not confirmed"}]
+  }
+}

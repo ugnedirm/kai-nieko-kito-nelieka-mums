@@ -74,7 +74,11 @@ _RULES: list[_Rule] = [
                           r"(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"), 0, None),
     ("secret", re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@]+@[^\s/]+[^\s]*"), 0, None),
     ("secret", re.compile(r"(?i:\b(?:password|passwd|pwd|secret|token|api[_-]?key)\b)"
-                          r"\s*(?:is\s+|[:=]\s*)?([^\s,;\"']{6,})"), 1, None),
+                          # a value needs ":", "=", "is"/"was", or must mix letters and digits,
+                          # so "password manager" or "token rotation" stays normal text
+                          r"(?:\s*(?:[:=]|\bis\b|\bwas\b)\s*"
+                          r"|\s+(?=[^\s,;\"']*\d)(?=[^\s,;\"']*[A-Za-z]))"
+                          r"([^\s,;\"']{5,}[^\s,;\"'.])"), 1, None),
     ("api_key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), 0, None),
     ("api_key", re.compile(r"\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36}"
                            r"|xox[abpr]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})"), 0, None),

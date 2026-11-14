@@ -41,6 +41,8 @@ def kinds(text: str) -> list[str]:
     (f"key {AWS}", "api_key"),
     (f"db {DB}", "secret"),
     ("password: correct-horse-battery", "secret"),
+    ("the password is hunter22", "secret"),
+    ("token abc123xyz789", "secret"),
     (f"pay to {IBAN}", "iban"),
     (f"asmens kodas {LT_ID}", "national_id"),
     ("my name is Jonas Petraitis", "person"),
@@ -49,6 +51,16 @@ def kinds(text: str) -> list[str]:
 ])
 def test_detects(text: str, kind: str) -> None:
     assert kind in kinds(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Use the team password manager.",
+    "the key goes into the password manager. Next: staging",
+    "We discussed token rotation yesterday.",
+    "Keep the secret santa list short.",
+])
+def test_normal_words_after_secret_words_are_not_secrets(text: str) -> None:
+    assert "secret" not in kinds(text)
 
 
 def test_checksums_avoid_false_alarms() -> None:

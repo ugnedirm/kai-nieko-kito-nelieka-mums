@@ -1,0 +1,29 @@
+{
+  "id": "trip_long",
+  "about": "Long chat: important facts at the start, 400 turns of small talk, a decision at the end.",
+  "conversation": [
+    ["user", "Planning a trip to Portugal in May. I am vegetarian, so restaurants matter."],
+    ["assistant", "Noted. Which cities?"],
+    ["user", "Lisbon first, then Porto. Total budget is 1200 EUR."],
+    ["assistant", "Shall we book the train between the cities?"],
+    ["user", "Yes, book the morning train from Lisbon to Porto. Next I need a hotel list for Porto."]
+  ],
+  "filler": {"after_turn": 3, "turns": 400},
+  "expect": {
+    "decisions": [["lisbon", "porto"], ["train"]],
+    "key_facts": [["1200"]],
+    "constraints": [["vegetarian"]],
+    "next_steps": [["hotel", "porto"]],
+    "invented": [["madrid"], ["faro"], ["flight|fly"]]
+  },
+  "reference": {
+    "decisions": [{"text": "Take the morning train from Lisbon to Porto.", "source_note": "user, end"},
+                  {"text": "Visit Lisbon first, then Porto.", "source_note": "user, start"}],
+    "open_questions": [],
+    "next_steps": [{"text": "Make a hotel list for Porto."}],
+    "key_facts": [{"text": "Total budget is 1200 EUR.", "source_note": "user, start"},
+                  {"text": "The trip to Portugal is in May.", "source_note": "user, start"}],
+    "constraints": [{"text": "The traveller is vegetarian, so restaurants matter."}],
+    "files": [], "uncertain": []
+  }
+}
