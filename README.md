@@ -688,10 +688,14 @@ see [Install](#install) for the installer script and the release package.
 
 ## License
 
-MIT: see `LICENSE`. In short, anyone may use, copy, change and share this software, including in
-commercial products, as long as the copyright notice stays with it. It comes with no warranty. The
-extension contains no third-party code. The program depends only on libraries under MIT, BSD or
-Apache licenses (the testing tool `hypothesis` is MPL-2.0 and is not part of what users install).
+MIT: see `LICENSE`. In short:
+- **You may** use, copy, change and share this software, including in commercial products,
+- **as long as** the copyright notice stays with it.
+- It comes with **no warranty**.
+
+**Third-party code:** the extension contains none. The program depends only on libraries under
+MIT, BSD or Apache licenses (the testing tool `hypothesis` is MPL-2.0 and is not part of what users
+install).
 
 ## Development
 
