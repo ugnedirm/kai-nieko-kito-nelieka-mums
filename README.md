@@ -442,13 +442,26 @@ page), using `scanners/sanitize.py`.
 
 ## Keeping and deleting
 
-- `thread forget <thread> <file>`: delete a file from **every** thread that has it (or **Forget this
-  file** on the page). The bytes are removed and a note stays in the history.
-- `thread expire <thread> --in 7d` (also `--at <time>`, `--never`, `--file <name>`): auto-delete. The
-  running service sweeps by itself every 15 minutes; `thread sweep` does it on demand.
-- `thread delete <thread>`: delete a whole thread now (files no other thread uses go with it).
-- `thread log [--denied] [--thread ID]`, or **Access log** on the page: who did what and when. It
-  never contains message text, files, keys or tokens, and it is hash-chained.
+🔒 You decide how long anything is kept, and deleting really deletes: the bytes are removed, not
+just hidden.
+
+| I want to... | On the vault page | Command |
+|---|---|---|
+| delete a file from **every** thread that has it | **Forget this file** | `thread forget <thread> <file>` |
+| delete things automatically later | auto-delete button | `thread expire <thread> --in 7d` (also `--at <time>`, `--never`, `--file <name>`) |
+| run the automatic deletion right now | | `thread sweep` |
+| delete a whole thread now | delete button | `thread delete <thread>` |
+
+- **Forget:** the bytes are removed and a note stays in the history.
+- **Auto-delete:** the running service sweeps by itself every 15 minutes; `thread sweep` does it on
+  demand.
+- **Delete a thread:** files no other thread uses go with it.
+
+### Access log
+
+`thread log [--denied] [--thread ID]`, or **Access log** on the page: who did what and when.
+🔒 It never contains message text, files, keys or tokens, and it is hash-chained, so changes to it
+are noticed.
 
 ## Who may do what (policy)
 
