@@ -57,6 +57,7 @@ def _never_touch_the_real_home(tmp_path_factory: pytest.TempPathFactory,
     instead (tests once piled hundreds of junk threads into the developer's real vault)."""
     home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # Path.home() reads this on Windows, not HOME
     monkeypatch.delenv("THREADVAULT_DIR", raising=False)  # so the default is <that home>/.threadvault
 
 

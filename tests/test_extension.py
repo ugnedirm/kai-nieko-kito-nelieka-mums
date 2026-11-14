@@ -74,8 +74,10 @@ def test_allowed_hosts_constant_matches_manifest() -> None:
 
 
 def js_files() -> list[Path]:
-    return [p for p in EXT.rglob("*") if p.suffix in {".js", ".html"} and "dist" not in p.parts
-            and "test" not in p.parts and "node_modules" not in p.parts]
+    # sorted: rglob follows directory order, which differs between machines (on Linux CI it made
+    # the order-sensitive checks below pass or fail at random)
+    return sorted(p for p in EXT.rglob("*") if p.suffix in {".js", ".html"} and "dist" not in p.parts
+                  and "test" not in p.parts and "node_modules" not in p.parts)
 
 
 def test_no_remote_code_or_html_injection() -> None:
@@ -93,7 +95,7 @@ def test_no_remote_code_or_html_injection() -> None:
 
 def test_only_background_talks_to_the_network() -> None:
     net = re.compile(r"\bfetch\b\s*[(,)]|XMLHttpRequest|sendBeacon|WebSocket|EventSource")
-    offenders = [p.name for p in js_files() if net.search(p.read_text())]
+    offenders = sorted(p.name for p in js_files() if net.search(p.read_text()))
     # content.js has ONE guarded fetch (pictures and files already shown in the person's chat)
     assert offenders == ["background.js", "content.js"], offenders
     content = (EXT / "src/content.js").read_text()
