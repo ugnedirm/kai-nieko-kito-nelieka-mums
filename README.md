@@ -670,9 +670,8 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
 - merge, forget, expiry, the access log
 - the Claude Desktop connector protocol (initialise, list tools, call a tool)
 - 🛡️ the prompt-injection wrapper
-- on Windows 11: installing, `thread setup` and `thread serve`
 
-### ⏳ Not verified end to end yet
+### ⏳ Not verified end to end
 
 - importing a real ChatGPT, Claude or Gemini export
 - "Bring it into this chat" and automatic file attach on the live sites: they depend on each
@@ -680,11 +679,9 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
   so if the layout is not recognised
 - `thread ask` with a real API key
 - the Streamlit page by hand
-- the full browser flow on Windows
 
-Also: there is no Gemini page support in the extension. Installing still needs some technical
-steps: there is no store listing yet and no packaged Mac (`.dmg`) or Windows (`.exe`) installer;
-see [Install](#install) for the installer script and the release package.
+Also: there is no Gemini page support in the extension. Installing still needs developer steps:
+there is no packaged installer or store listing.
 
 ## License
 
