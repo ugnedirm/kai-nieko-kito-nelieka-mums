@@ -93,8 +93,8 @@ test("post sends token only to 127.0.0.1 and whitelists the response", async () 
 test("post errors never include the token and cover 401/403/offline", async () => {
   const tok = "secret-token-1234567890";
   for (const [fake, re] of [
-    [async () => ({ status: 401 }), /token rejected/],
-    [async () => ({ status: 403 }), /refused/],
+    [async () => ({ status: 401 }), /no longer recognises/],
+    [async () => ({ status: 403 }), /not connected to your vault/],
     [async () => { throw new Error("connect ECONNREFUSED " + tok); }, /not reachable/],
     [async () => ({ status: 200, json: async () => { throw new Error("bad"); } }), /unreadable/],
   ]) {
@@ -153,4 +153,65 @@ test("retries build byte-identical requests (vault idempotency, SPEC 8.8)", () =
   assert.ok(first.includes("2026-01-02T03:04:05Z"));
   const withAck = I.handoverRequest("claude", "1", choice, content, { ...opts, acknowledged: true });
   assert.equal(withAck.acknowledged_findings, true);
+});
+
+// ---- picture and file capture ---------------------------------------------------------------
+const F = require("../src/lib/files.js");
+const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+
+test("capture only fetches the chat site's own https or blob URLs", () => {
+  const origin = "https://claude.ai";
+  assert.equal(F.urlAllowed("https://claude.ai/api/files/1", origin), true);
+  assert.equal(F.urlAllowed("blob:https://claude.ai/abc-123", origin), true);
+  for (const bad of ["https://evil.example/x.png", "http://claude.ai/x.png", "blob:https://evil.example/a",
+    "data:image/png;base64,AAAA", "file:///etc/passwd", "https://claude.ai.evil.com/x", "https://u:p@claude.ai/x",
+    "javascript:alert(1)", "not a url", "https://chatgpt.com/x.png"]) {
+    assert.equal(F.urlAllowed(bad, origin), false, bad);
+  }
+});
+
+test("sniff trusts bytes, not names or claimed types", () => {
+  assert.equal(F.sniff(PNG, "x.png"), "png");
+  assert.equal(F.sniff(PNG, "x.txt"), "png"); // a lying name does not change what it is
+  assert.equal(F.sniff(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]), "a.jpg"), "jpeg");
+  assert.equal(F.sniff(new TextEncoder().encode("%PDF-1.7"), "a.pdf"), "pdf");
+  const zip = Uint8Array.from([0x50, 0x4b, 3, 4, 0]);
+  assert.equal(F.sniff(zip, "deck.pptx"), "ooxml");
+  assert.equal(F.sniff(zip, "evil.zip"), null);
+  assert.equal(F.sniff(new TextEncoder().encode("hello"), "n.txt"), "text");
+  assert.equal(F.sniff(new TextEncoder().encode("hello"), "run.sh"), null);
+  assert.equal(F.sniff(Uint8Array.from([0x68, 0, 0x69]), "n.txt"), null); // NUL byte: not text
+  assert.equal(F.sniff(new Uint8Array([0x4d, 0x5a, 0x90]), "a.png"), null); // an .exe named .png
+});
+
+test("names are cleaned and given the right extension", () => {
+  assert.equal(F.cleanName("../../etc/passwd", "text"), "passwd.txt");
+  assert.equal(F.cleanName("My Photo.png", "png"), "My Photo.png");
+  assert.equal(F.cleanName("", "pdf"), "attachment.pdf");
+  assert.equal(F.cleanName("a<b>|c.jpg", "jpeg"), "a_b__c.jpg");
+});
+
+test("validateCaptured re-checks what a content script sent", () => {
+  const ok = { name: "a.png", data_base64: F.toBase64(PNG) };
+  const bad = [{ name: "x.png", data_base64: F.toBase64(new Uint8Array([1, 2, 3, 4])) },
+    { name: 5, data_base64: "AAAA" }, null, { name: "y.png", data_base64: "!!!not base64" }];
+  const got = F.validateCaptured([ok, ...bad]);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].media_type, "image/png");
+  assert.equal(got[0].size, PNG.length);
+  assert.equal(F.validateCaptured("nope").length, 0);
+  const big = new Uint8Array(F.LIMITS.MAX_FILE_BYTES + 1); big.set(PNG);
+  assert.equal(F.validateCaptured([{ name: "big.png", data_base64: F.toBase64(big) }]).length, 0);
+  const many = Array.from({ length: 20 }, () => ok);
+  assert.equal(F.validateCaptured(many).length, F.LIMITS.MAX_FILES);
+});
+
+test("a file the person attaches may be larger than an automatic capture, but still capped", () => {
+  const big = new Uint8Array(F.LIMITS.MAX_FILE_BYTES + 10); big.set(PNG);
+  const f = { name: "scan.png", data_base64: F.toBase64(big) };
+  assert.equal(F.validateCaptured([f]).length, 0);
+  const opts = { maxFile: F.LIMITS.MAX_ATTACH_BYTES, maxTotal: F.LIMITS.MAX_ATTACH_BYTES };
+  assert.equal(F.validateCaptured([f], opts).length, 1);
+  const huge = new Uint8Array(F.LIMITS.MAX_ATTACH_BYTES + 10); huge.set(PNG);
+  assert.equal(F.validateCaptured([{ name: "h.png", data_base64: F.toBase64(huge) }], opts).length, 0);
 });

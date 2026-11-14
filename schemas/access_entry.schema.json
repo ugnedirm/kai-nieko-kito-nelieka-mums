@@ -24,7 +24,7 @@
     "action": {
       "enum": [
         "list", "load", "append", "get_file", "save_handover", "ingest",
-        "export", "forget", "sweep", "verify", "fork", "send_to_model"
+        "export", "forget", "sweep", "verify", "fork", "send_to_model", "pair"
       ]
     },
     "outcome": { "enum": ["allowed", "denied", "error"] },

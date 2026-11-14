@@ -20,6 +20,8 @@
   root.replaceChildren(el("h1", { textContent: "Review before saving" }));
   if (!p) { root.append(say("err", "This capture has expired. Capture again from the chat page.")); return; }
 
+  root.append(say("ok", "What is this? Your chat was summarised so you can carry on in another AI. " +
+    "Read it, correct or remove anything wrong, then press Save at the bottom. Nothing is saved until you do."));
   root.append(say("warn", "This summary was written by an AI. It may be wrong or incomplete. Saving marks it " +
     "as reviewed by you. Do not save anything you have not read."));
   for (const w of p.warnings) root.append(say("warn", w));
@@ -41,13 +43,20 @@
   }
 
   const title = el("input", { value: p.title || "", maxLength: 200 });
+  const threadNote = el("p", { className: "note-small" });
   const threadSel = el("select", {}, el("option", { value: "", textContent: "New thread" }));
   const saveMessages = el("input", { type: "checkbox" });
   const saveArtifacts = el("input", { type: "checkbox" });
   root.append(el("h2", { textContent: "Where to save" }),
-    el("label", {}, "Thread: ", threadSel), el("br"), el("label", {}, "New thread title: ", title));
+    el("label", {}, "Thread: ", threadSel), threadNote, el("label", {}, "New thread title: ", title));
   ext.runtime.sendMessage({ type: "list_threads" }).then((list) => {
     for (const t of Array.isArray(list) ? list : []) threadSel.append(el("option", { value: t.thread_id, textContent: t.title }));
+    // Files attached to this chat already went to one thread: save the summary there too.
+    if (p.suggestedThreadId && Array.from(threadSel.options).some((o) => o.value === p.suggestedThreadId)) {
+      threadSel.value = p.suggestedThreadId;
+      threadNote.textContent = "Files you attached to this chat were saved in the thread selected above, " +
+        "so the summary will be added to it. Choose \"New thread\" to keep it separate.";
+    }
   });
   if (p.messages && p.messages.length) {
     root.append(el("div", {}, el("label", {}, saveMessages, ` Also save the whole conversation (${p.messages.length} messages, stored as unverified)`)));
@@ -55,6 +64,22 @@
   if (p.artifacts && p.artifacts.length) {
     root.append(el("div", {}, el("label", {}, saveArtifacts, ` Also save ${p.artifacts.length} code/text block(s) as files`)));
   }
+
+  const fileBoxes = [];
+  root.append(el("h2", { textContent: "Pictures and files from the chat" }));
+  if (p.files && p.files.length) {
+    root.append(say("warn", "Tick the ones to save. Hidden data such as the location inside a photo is " +
+      "removed by the vault before storing."));
+    p.files.forEach((f) => {
+      const box = el("input", { type: "checkbox", checked: true });
+      fileBoxes.push(box);
+      root.append(el("div", {}, el("label", {}, box, ` ${f.name} (${f.size < 1024 ? f.size + " bytes" : Math.round(f.size / 1024) + " KB"})`)));
+    });
+  } else {
+    root.append(el("p", { className: "note-small", textContent: "None found." }));
+  }
+  root.append(el("p", { className: "note-small",
+    textContent: "Some files, such as documents you uploaded, are not available to the extension and cannot be captured automatically." }));
 
   const status = el("div");
   const save = el("button", { type: "button", textContent: "Save" });
@@ -72,11 +97,18 @@
     }
     save.disabled = true;
     const res = await ext.runtime.sendMessage({ type: "submit", id, content, title: title.value,
-      threadId: threadSel.value, saveMessages: saveMessages.checked, saveArtifacts: saveArtifacts.checked, ackStep });
+      threadId: threadSel.value, saveMessages: saveMessages.checked, saveArtifacts: saveArtifacts.checked,
+      fileIndexes: fileBoxes.map((b, i) => (b.checked ? i : -1)).filter((i) => i >= 0), ackStep });
     save.disabled = false;
     status.replaceChildren();
     ackStep = null;
-    if (res.status === "accepted") { status.append(say("ok", "Saved.")); save.disabled = true; return; }
+    if (res.status === "accepted") {
+      status.append(say("ok", "Saved! Your summary is now in your vault."),
+        el("button", { type: "button", textContent: "Open my saved threads",
+          onclick: () => ext.runtime.sendMessage({ type: "open_vault" }) }));
+      save.disabled = true;
+      return;
+    }
     if (res.status === "needs_confirmation") {
       status.append(say("warn", "The vault found items that may be sensitive (shown by type and place only). " +
         "Edit them out, or press Save again to keep them."));

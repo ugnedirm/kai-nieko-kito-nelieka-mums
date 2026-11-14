@@ -17,9 +17,27 @@ from threadvault.core.hashing import canonical_json, sha256_bytes
 from threadvault.core.vault import Vault
 from threadvault.policy.engine import decide, default_profile
 from threadvault.scanners.basic import scan_record
+from threadvault.scanners.sanitize import sanitize_file
 from threadvault.types import SECRET_KINDS, Finding, Record
 
 MAX_FILE_BYTES = 50 * 1024 * 1024
+MEDIA_BY_FORMAT = {
+    "jpeg": "image/jpeg", "png": "image/png", "pdf": "application/pdf", "text": "text/plain",
+}
+_OOXML_BY_EXTENSION = {
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+def media_type_for(fmt: str, name: str) -> str:
+    """The stored media type: decided by the vault from the detected format, never taken from the
+    client. Office files share one container format, so the file extension picks among the three
+    Office types; anything unrecognised is plain `application/octet-stream`."""
+    if fmt == "ooxml":
+        return _OOXML_BY_EXTENSION.get(name.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+    return MEDIA_BY_FORMAT.get(fmt, "application/octet-stream")
 
 
 class IngestService:
@@ -67,10 +85,20 @@ class IngestService:
     def _scan(self, payload: Record, profile: Record) -> tuple[list[Finding], bool]:
         if payload["kind"] == "file":
             try:
-                text = base64.b64decode(payload["file"]["data_base64"], validate=True).decode("utf-8")
-            except (binascii.Error, UnicodeDecodeError):
+                raw = base64.b64decode(payload["file"]["data_base64"], validate=True)
+            except binascii.Error:
                 return [], False
-            findings = scan_record(text, "$.file")
+            findings = []
+            try:
+                findings = scan_record(raw.decode("utf-8"), "$.file")
+            except UnicodeDecodeError:
+                pass
+            if profile.get("strip_file_metadata"):
+                # What the cleaner could not remove is shown to the person, who decides (a file
+                # they chose may keep it locally; it is never sent on, see cli/share.py).
+                result = sanitize_file(raw)
+                findings += [Finding(kind=f.kind, severity=f.severity, path="$.file", detail=f.detail)
+                             for f in result.findings if (f.detail or "").startswith("NOT removed")]
         elif payload["kind"] == "handover":
             findings = scan_record(payload["content"], "$.content")
         else:
@@ -78,8 +106,22 @@ class IngestService:
         blocked = bool(profile["block_on_secrets"]) and any(f.kind in SECRET_KINDS for f in findings)
         return findings, blocked
 
+    def _prepare_file(self, f: Record) -> tuple[bytes, str]:
+        """Decode, check and clean an uploaded file BEFORE anything is created, so a refusal
+        leaves nothing behind. The vault, not the client, decides the media type (SPEC 8.6)."""
+        raw = base64.b64decode(f["data_base64"], validate=True)
+        if len(raw) > MAX_FILE_BYTES or len(raw) != f["size"]:
+            raise ValueError("file size invalid")
+        result = sanitize_file(raw)
+        if default_profile(self._policy)["strip_file_metadata"] if self._policy else True:
+            # A file that could not be fully cleaned only gets here after the person acknowledged
+            # the findings (handle() asks first), and stays local: sharing skips such files.
+            raw = result.cleaned
+        return raw, media_type_for(result.format, str(f["name"]))
+
     def _store(self, request: Record) -> tuple[str, str]:
         target, payload = request["target"], request["payload"]
+        prepared = self._prepare_file(payload["file"]) if payload["kind"] == "file" else None
         if "new_thread" in target:
             nt = target["new_thread"]
             thread_id = self._vault.create_thread(nt["title"], nt["mode"])
@@ -104,11 +146,9 @@ class IngestService:
                     "created_at": m["created_at"], "content": m["content"],
                     "provenance": "imported-unverified", **({"file_refs": m["file_refs"]} if "file_refs" in m else {})})
             return thread_id, str(last["hash"])
-        f = payload["file"]
-        raw = base64.b64decode(f["data_base64"], validate=True)
-        if len(raw) > MAX_FILE_BYTES or len(raw) != f["size"]:
-            raise ValueError("file size invalid")
-        ref = self._vault.put_file(thread_id, f["name"], f["media_type"], raw)
+        assert prepared is not None
+        raw, media_type = prepared
+        ref = self._vault.put_file(thread_id, payload["file"]["name"], media_type, raw)
         return thread_id, str(ref["sha256"])
 
     def _finish(self, request: Record, status: str, *, outcome: str | None = None, **kw: Any) -> Record:

@@ -22,6 +22,7 @@
       "js": [
         "src/lib/constants.js",
         "src/lib/util.js",
+        "src/lib/files.js",
         "src/lib/handover.js",
         "src/lib/limits.js",
         "src/adapters/base.js",

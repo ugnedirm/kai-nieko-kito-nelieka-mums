@@ -153,3 +153,153 @@ def test_fork_creates_current_branch() -> None:
     assert r.exit_code == 1 and "Traceback" not in r.output
     r = runner.invoke(app, [*V, "fork", "thr_full0001", "--at-hash", "sha256:" + "0" * 64])
     assert r.exit_code == 1 and "cannot fork" in r.output
+
+
+def test_open_refuses_when_service_is_not_running(tmp_path: Path) -> None:
+    r = runner.invoke(app, ["--vault", str(tmp_path / "v"), "open", "--port", "1"])
+    assert r.exit_code == 1 and "not running" in r.output
+
+
+def test_setup_creates_vault_and_installs_autostart_only_when_asked(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from threadvault.cli import autostart, main
+
+    calls: list[str] = []
+    monkeypatch.setattr(autostart, "supported", lambda: True)
+    monkeypatch.setattr(autostart, "install", lambda root, port: calls.append("install") or "ok")
+    monkeypatch.setattr(main, "_alive", lambda port: False)
+    v = ["--vault", str(tmp_path / "v")]
+    r = runner.invoke(app, [*v, "setup"], input="n\n")  # the person declines
+    assert r.exit_code == 0 and calls == [] and (tmp_path / "v" / "policy.json").exists()
+    r = runner.invoke(app, [*v, "setup", "--yes"])
+    assert r.exit_code == 0 and calls == ["install"]
+
+
+def test_file_add_cleans_and_asks_before_keeping_hidden_data(tmp_path: Path) -> None:
+    own = ["--vault", str(tmp_path / "v")]
+    src = tmp_path / "t.md"
+    src.write_text("User: hi\n\nAssistant: hello\n")
+    runner.invoke(app, [*own, "import", "markdown", str(src)])
+    tid = runner.invoke(app, [*own, "list"]).output.split()[0]
+    note = tmp_path / "notes.txt"
+    note.write_text("my notes\n")
+    r = runner.invoke(app, [*own, "file", "add", tid, str(note)])
+    assert r.exit_code == 0 and "attached notes.txt" in r.output
+    odd = tmp_path / "odd.bin"
+    odd.write_bytes(b"\x00\x01opaque\xff")
+    r = runner.invoke(app, [*own, "file", "add", tid, str(odd)], input="n\n")
+    assert r.exit_code == 1 and "hidden details" in r.output and "not attached" in r.output
+    r = runner.invoke(app, [*own, "file", "add", tid, str(odd), "--yes"])
+    assert r.exit_code == 0 and "attached odd.bin" in r.output
+    assert runner.invoke(app, [*own, "file", "add", "thr_nope", str(note)]).exit_code == 1
+    assert runner.invoke(app, [*own, "file", "add", tid, str(tmp_path / "missing")]).exit_code == 1
+
+
+def test_merge_command(tmp_path: Path) -> None:
+    own = ["--vault", str(tmp_path / "v")]
+    for name in ("a.md", "b.md"):
+        (tmp_path / name).write_text("User: hi\n\nAssistant: hello\n")
+        runner.invoke(app, [*own, "import", "markdown", str(tmp_path / name)])
+    ids = [line.split()[0] for line in runner.invoke(app, [*own, "list"]).output.splitlines()]
+    r = runner.invoke(app, [*own, "merge", ids[0], ids[1]])
+    assert r.exit_code == 1 and "saved text" in r.output  # both hold messages: refused
+    assert runner.invoke(app, [*own, "merge", "thr_nope", ids[1]]).exit_code == 1
+
+
+def _thread_with_file(tmp_path: Path) -> tuple[list[str], str]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    own = ["--vault", str(tmp_path / "v")]
+    src = tmp_path / "t.md"
+    src.write_text("User: hi\n\nAssistant: hello\n")
+    runner.invoke(app, [*own, "import", "markdown", str(src)])
+    tid = runner.invoke(app, [*own, "list"]).output.split()[0]
+    note = tmp_path / "plan.txt"
+    note.write_text("plan\n")
+    assert runner.invoke(app, [*own, "file", "add", tid, str(note)]).exit_code == 0
+    return own, tid
+
+
+def test_forget_expire_sweep_delete_and_log(tmp_path: Path) -> None:
+    own, tid = _thread_with_file(tmp_path)
+    r = runner.invoke(app, [*own, "forget", tid, "plan.txt"], input="n\n")
+    assert r.exit_code == 1 and "not deleted" in r.output
+    assert runner.invoke(app, [*own, "forget", tid, "nope.txt", "--yes"]).exit_code == 1
+    r = runner.invoke(app, [*own, "forget", tid, "plan.txt", "--yes"])
+    assert r.exit_code == 0 and "forgotten" in r.output
+    assert "plan.txt" not in runner.invoke(app, [*own, "show", tid]).output  # gone from the thread
+
+    assert runner.invoke(app, [*own, "expire", tid]).exit_code == 1  # needs one option
+    assert runner.invoke(app, [*own, "expire", tid, "--in", "soon"]).exit_code == 1
+    r = runner.invoke(app, [*own, "expire", tid, "--in", "7d"])
+    assert r.exit_code == 0 and "will be deleted at" in r.output
+    assert runner.invoke(app, [*own, "expire", tid, "--never"]).exit_code == 0
+    runner.invoke(app, [*own, "expire", tid, "--at", "2020-01-01T00:00:00Z"])
+    r = runner.invoke(app, [*own, "sweep"])
+    assert r.exit_code == 0 and "removed 1" in r.output
+    assert runner.invoke(app, [*own, "list"]).output.strip() == ""
+
+    own2, tid2 = _thread_with_file(tmp_path / "second")
+    assert runner.invoke(app, [*own2, "delete", tid2], input="n\n").exit_code == 1
+    assert runner.invoke(app, [*own2, "delete", tid2, "--yes"]).exit_code == 0
+    assert runner.invoke(app, [*own2, "delete", tid2, "--yes"]).exit_code == 1
+    out = runner.invoke(app, [*own2, "log"]).output
+    assert "chain: ok" in out and "sweep" in out
+
+
+def _inited(tmp_path: Path) -> list[str]:
+    own = ["--vault", str(tmp_path / "v")]
+    assert runner.invoke(app, [*own, "init"]).exit_code == 0
+    return own
+
+
+def test_policy_show_allow_revoke(tmp_path: Path) -> None:
+    own = _inited(tmp_path)
+    out = runner.invoke(app, [*own, "policy", "show"]).output
+    assert "browser-extension" in out and "chatgpt" in out and "blocks secrets" in out
+    assert runner.invoke(app, [*own, "policy", "allow", "claude-desktop", "teleport"]).exit_code == 1
+    r = runner.invoke(app, [*own, "policy", "allow", "claude-desktop", "read", "append"])
+    assert r.exit_code == 0 and "append, read" in r.output
+    assert (tmp_path / "v" / "policy.json.bak").exists()
+    assert "claude-desktop: append, read" in runner.invoke(app, [*own, "policy", "show"]).output
+    assert runner.invoke(app, [*own, "policy", "revoke", "claude-desktop", "append"]).exit_code == 0
+    assert "claude-desktop: read" in runner.invoke(app, [*own, "policy", "show"]).output
+    assert runner.invoke(app, [*own, "policy", "revoke", "claude-desktop"]).exit_code == 0
+    assert "claude-desktop" not in runner.invoke(app, [*own, "policy", "show"]).output
+    assert runner.invoke(app, [*own, "policy", "revoke", "nobody"]).exit_code == 1
+
+
+def test_init_update_policy_keeps_a_backup(tmp_path: Path) -> None:
+    own = _inited(tmp_path)
+    pol = tmp_path / "v" / "policy.json"
+    pol.write_text('{"spec_version": "1", "type": "policy", "default_profile": "strict", "clients": [],'
+                   ' "destinations": [], "profiles": {"strict": {"redact": [], "pseudonymize": false,'
+                   ' "block_on_secrets": true, "allow_attachments": false, "strip_file_metadata": true}}}')
+    assert "left unchanged" in runner.invoke(app, [*own, "init"]).output
+    assert runner.invoke(app, [*own, "init", "--update-policy"]).exit_code == 0
+    assert (tmp_path / "v" / "policy.json.bak").exists() and "chatgpt" in pol.read_text()
+
+
+def test_plugin_pin_check_unpin(tmp_path: Path) -> None:
+    own = _inited(tmp_path)
+    plug = tmp_path / "myplug.py"
+    plug.write_text("VALUE = 1\n")
+    assert "no plugins are pinned" in runner.invoke(app, [*own, "plugin", "list"]).output
+    assert runner.invoke(app, [*own, "plugin", "check", "myplug", str(plug)]).exit_code == 1  # unpinned
+    r = runner.invoke(app, [*own, "plugin", "pin", "myplug", str(plug)], input="n\n")
+    assert r.exit_code == 1 and "not pinned" in r.output
+    assert runner.invoke(app, [*own, "plugin", "pin", "myplug", str(plug), "--yes"]).exit_code == 0
+    assert runner.invoke(app, [*own, "plugin", "check", "myplug", str(plug)]).exit_code == 0
+    plug.write_text("VALUE = 2  # edited after pinning\n")
+    r = runner.invoke(app, [*own, "plugin", "check", "myplug", str(plug)])
+    assert r.exit_code == 1 and "changed since it was pinned" in r.output
+    assert runner.invoke(app, [*own, "plugin", "unpin", "myplug"]).exit_code == 0
+    assert runner.invoke(app, [*own, "plugin", "unpin", "myplug"]).exit_code == 1
+
+
+def test_mcp_config_prints_a_working_setting_and_can_allow_the_client(tmp_path: Path) -> None:
+    own = _inited(tmp_path)
+    out = runner.invoke(app, [*own, "mcp-config"]).output
+    assert '"mcpServers"' in out and '"mcp"' in out and "gets nothing until you allow it" in out
+    runner.invoke(app, [*own, "mcp-config", "--allow"])
+    assert "claude-desktop: append, read, save_handover" in runner.invoke(
+        app, [*own, "policy", "show"]).output

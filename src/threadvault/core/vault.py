@@ -49,6 +49,15 @@ class Vault(Protocol):
         """New branch sharing history with `from_branch` up to a fork point; returns its id."""
         ...
     def set_current_branch(self, thread_id: str, branch_id: str) -> None: ...
+    def merge_files(self, source_id: str, target_id: str) -> int:
+        """Move a files-only thread's files into another thread and delete the source."""
+        ...
+    def delete_thread(self, thread_id: str) -> None: ...
+    def set_expiry(self, thread_id: str, expires_at: str | None) -> None: ...
+    def set_file_expiry(self, thread_id: str, sha256: str, expires_at: str | None) -> None: ...
+    def sweep_expired(self) -> int:
+        """Delete expired threads and forget expired files; returns how many were removed."""
+        ...
 
 
 class FixtureVault:
@@ -142,6 +151,41 @@ class FixtureVault:
         self._chains[thread_id][bid] = []
         self._manifests[thread_id]["branches"].append({"branch_id": bid, "head_hash": None})
         return bid
+
+    def delete_thread(self, thread_id: str) -> None:
+        for table in (self._manifests, self._branches, self._chains):
+            del table[thread_id]
+
+    def set_expiry(self, thread_id: str, expires_at: str | None) -> None:
+        if expires_at is None:
+            self._manifests[thread_id].pop("expires_at", None)
+        else:
+            self._manifests[thread_id]["expires_at"] = expires_at
+
+    def set_file_expiry(self, thread_id: str, sha256: str, expires_at: str | None) -> None:
+        entry = next((f for f in self._manifests[thread_id]["files"] if f["sha256"] == sha256), None)
+        if entry is None:
+            raise KeyError("file not in this thread")
+        if expires_at is None:
+            entry.pop("expires_at", None)
+        else:
+            entry["expires_at"] = expires_at
+
+    def sweep_expired(self) -> int:
+        return 0  # the in-memory stub never expires anything
+
+    def merge_files(self, source_id: str, target_id: str) -> int:
+        if source_id == target_id:
+            raise ValueError("cannot merge a thread into itself")
+        if any(self._chains[source_id].values()):
+            raise ValueError("that thread has saved text; only a thread with nothing but files "
+                             "can be merged")
+        have = {f["sha256"] for f in self._manifests[target_id]["files"]}
+        added = [dict(f) for f in self._manifests[source_id]["files"] if f["sha256"] not in have]
+        self._manifests[target_id]["files"].extend(added)
+        for table in (self._manifests, self._branches, self._chains):
+            del table[source_id]
+        return len(added)
 
     def set_current_branch(self, thread_id: str, branch_id: str) -> None:
         if branch_id not in self._branches[thread_id]:

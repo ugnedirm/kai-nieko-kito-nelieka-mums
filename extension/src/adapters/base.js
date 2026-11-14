@@ -66,6 +66,34 @@
           name: `${spec.site}-artifact-${i + 1}.txt`, text: textOf(el) })).filter((f) => f.text.trim());
       },
 
+      // Pictures and file links shown inside chat messages. Returns plain strings only: the
+      // content script decides whether any of them may be fetched (lib/files.js urlAllowed).
+      attachments(doc) {
+        const out = [];
+        const seen = new Set();
+        const roots = [].concat(all(doc, spec.selectors.user), all(doc, spec.selectors.assistant));
+        for (const el of roots) {
+          if (typeof el.querySelectorAll !== "function") continue;
+          for (const img of Array.from(el.querySelectorAll("img[src]")).slice(0, 40)) {
+            const big = (img.naturalWidth || 0) >= 64 && (img.naturalHeight || 0) >= 64;
+            const url = String(img.currentSrc || img.src || "");
+            if (big && url && !seen.has(url)) {
+              seen.add(url);
+              out.push({ kind: "image", url, name: String(img.alt || "").slice(0, 120) });
+            }
+          }
+          for (const a of Array.from(el.querySelectorAll("a[href]")).slice(0, 40)) {
+            const url = String(a.href || "");
+            const name = String(a.getAttribute("download") || (url.split("?")[0].split("/").pop() || "")).slice(0, 120);
+            if (url && !seen.has(url) && (a.hasAttribute("download") || /\.[A-Za-z0-9]{2,5}$/.test(name))) {
+              seen.add(url);
+              out.push({ kind: "link", url, name });
+            }
+          }
+        }
+        return out.slice(0, 60);
+      },
+
       pageTitle: (doc) => U.clip(U.cleanText(doc.title || ""), 200).trim(),
 
       // Put text into the chat box. Never presses send: the user does that.

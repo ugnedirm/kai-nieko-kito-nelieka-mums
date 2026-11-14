@@ -9,7 +9,8 @@
 
   const DEBOUNCE_MS = 1000;
   const AWAIT_TIMEOUT_MS = 10 * 60 * 1000;
-  let settings = { checkpointEvery: TV.constants.DEFAULT_CHECKPOINT_EVERY, checkpointMode: "remind", fullMode: false };
+  let settings = { checkpointEvery: TV.constants.DEFAULT_CHECKPOINT_EVERY, checkpointMode: "remind", fullMode: false,
+    captureFiles: true, attachMode: "ask" };
   let awaiting = null; // { baselineTurns, baselineText, startedAt }
   let lastBucket = 0;
   let limitShown = false;
@@ -21,7 +22,49 @@
     if (Number.isInteger(s.checkpointEvery) && s.checkpointEvery > 0) settings.checkpointEvery = s.checkpointEvery;
     if (["off", "remind", "fill"].includes(s.checkpointMode)) settings.checkpointMode = s.checkpointMode;
     settings.fullMode = s.fullMode === true;
+    settings.captureFiles = s.captureFiles !== false;
+    if (["ask", "auto", "off"].includes(s.attachMode)) settings.attachMode = s.attachMode;
   });
+
+  // ---- pictures and files shown in the chat ----------------------------------------------------
+  // The ONLY network use in a content script. It runs on the person's own, already-open chat and
+  // fetches nothing the guard below does not allow: this site's own https/blob URLs, a size cap,
+  // no redirects, and the bytes must be a type the vault can clean (checked by magic bytes).
+  // Nothing leaves the page here: the result goes to the background, then to the review screen.
+  async function fetchAttachment(url, budget) {
+    if (!TV.files.urlAllowed(url, location.origin)) return null;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 15000);
+    try {
+      const res = await fetch(url, { credentials: "same-origin", redirect: "error", cache: "no-store", signal: ctl.signal });
+      if (!res.ok) return null;
+      const declared = Number(res.headers.get("content-length"));
+      if (Number.isFinite(declared) && declared > Math.min(TV.files.LIMITS.MAX_FILE_BYTES, budget.left)) return null;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length === 0 || bytes.length > TV.files.LIMITS.MAX_FILE_BYTES || bytes.length > budget.left) return null;
+      budget.left -= bytes.length;
+      return bytes;
+    } catch (_) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function collectFiles() {
+    const budget = { left: TV.files.LIMITS.MAX_TOTAL_BYTES };
+    const files = [];
+    for (const c of adapter.attachments(document)) {
+      if (files.length >= TV.files.LIMITS.MAX_FILES) break;
+      if (c.kind === "link" && !TV.files.looksCapturable(c.name)) continue;
+      const bytes = await fetchAttachment(c.url, budget);
+      if (!bytes) continue;
+      const type = TV.files.sniff(bytes, c.name || "image.png");
+      if (!type) { budget.left += bytes.length; continue; }
+      files.push({ name: TV.files.cleanName(c.name || "image", type), data_base64: TV.files.toBase64(bytes) });
+    }
+    return files;
+  }
 
   // ---- in-page notice (closed shadow root; CSSOM styles only; text via textContent) ----------
   let host = null;
@@ -51,6 +94,104 @@
     document.documentElement.append(host);
   }
 
+  // ---- files the person attaches to the chat ---------------------------------------------------
+  // The person picks a file for the AI; at that moment we hold the real file, so no download link
+  // is needed. Only genuine user actions count (`isTrusted`: page scripts cannot fake them). Reading
+  // a File is local; the bytes go to the background worker, which re-checks and saves them to the
+  // local vault (cleaned there). Nothing is saved without "ask" consent or the "auto" setting.
+  const offered = new Set(); // so one pick (change + drop for the same file) is offered once
+  const trusted = (fn) => (e) => { if (e.isTrusted) fn(e); };
+
+  async function saveAttachment(file, ack) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!TV.files.sniff(bytes, file.name)) {
+      notify("threadvault keeps pictures, PDFs, Word, PowerPoint, Excel and text files. \"" + file.name +
+        "\" is another type, so no copy was saved. (The AI still received it.)", []);
+      return;
+    }
+    const res = await ext.runtime.sendMessage({ type: "attach_file", site: adapter.site,
+      adapterVersion: adapter.version, title: adapter.pageTitle(document), mode: settings.fullMode ? "full" : "handover",
+      name: file.name, data_base64: TV.files.toBase64(bytes), ack: !!ack }).catch(() => null);
+    if (!res) { notify("Could not reach the extension background.", []); return; }
+    if (res.status === "accepted") notify("Saved a copy of \"" + file.name + "\" to threadvault.", []);
+    else if (res.status === "needs_confirmation") {
+      const plain = { file_metadata: "hidden file details (such as author or location)",
+        hidden_content: "hidden content", api_key: "a key", secret: "a secret", email: "an email address",
+        phone: "a phone number", person: "a name", prompt_injection: "text that looks like instructions to an AI" };
+      const what = Array.from(new Set((res.findings || []).map((f) => plain[f.kind] || f.kind))).join(", ");
+      notify("\"" + file.name + "\" may still contain " + what + " that threadvault could not remove. " +
+        "Save a copy anyway? It stays on your computer and is never sent to another AI.",
+        [{ label: "Save anyway", primary: true, run: () => saveAttachment(file, true) }]);
+    } else {
+      notify("No copy of \"" + file.name + "\" was saved: " + (res.error || "the vault did not accept it") +
+        ". You can attach it by hand on your vault page.", []);
+    }
+  }
+
+  function onUserFiles(list) {
+    if (settings.attachMode === "off") return;
+    for (const file of Array.from(list).slice(0, 5)) { // copied now: the page may clear the list
+      const key = file.name + ":" + file.size + ":" + file.lastModified;
+      if (offered.has(key)) continue;
+      offered.add(key);
+      if (file.size > TV.files.LIMITS.MAX_ATTACH_BYTES) {
+        notify("\"" + file.name + "\" is too large for threadvault (25 MB). Attach it by hand on your vault page.", []);
+      } else if (settings.attachMode === "auto") {
+        saveAttachment(file, false).catch(() => {});
+      } else {
+        notify("You attached \"" + file.name + "\" to this chat. Save a copy to threadvault too?",
+          [{ label: "Save a copy", primary: true, run: () => saveAttachment(file, false).catch(() => {}) }]);
+      }
+    }
+  }
+
+  document.addEventListener("change", trusted((e) => {
+    const t = e.target;
+    if (t && t.tagName === "INPUT" && t.type === "file" && t.files && t.files.length) onUserFiles(t.files);
+  }), true);
+  document.addEventListener("drop", trusted((e) => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) onUserFiles(e.dataTransfer.files);
+  }), true);
+  document.addEventListener("paste", trusted((e) => {
+    if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length) onUserFiles(e.clipboardData.files);
+  }), true);
+
+  // ---- "Continue here": put a saved thread into this chat ---------------------------------------
+  // The text goes into the chat box (never sent: the person presses send) and the files into the
+  // page's own file picker, as if the person had chosen them. Both came from the local vault,
+  // already cleaned for this destination. These events are synthetic (isTrusted is false), so the
+  // attach listeners above ignore them: nothing is saved back.
+  function fillContinue(msg) {
+    const text = typeof msg.text === "string" ? msg.text.slice(0, 400000) : "";
+    if (!text) return { ok: false, error: "nothing to fill in" };
+    const filled = adapter.fillInput(document, text);
+    if (filled === "busy") return { ok: false, error: "The chat box already has text. Send or clear it first." };
+    if (filled !== "ok") return { ok: false, error: "could not find the chat box" };
+    const limits = { maxFile: TV.files.LIMITS.MAX_ATTACH_BYTES, maxTotal: TV.files.LIMITS.MAX_ATTACH_BYTES };
+    const files = TV.files.validateCaptured(msg.files, limits);
+    let attached = 0;
+    let note = "";
+    if (files.length) {
+      const input = document.querySelector("input[type='file']");
+      if (!input) {
+        note = "I could not find the page's file picker: attach the files yourself from your vault page.";
+      } else {
+        try {
+          const dt = new DataTransfer();
+          for (const f of files) {
+            dt.items.add(new File([TV.files.fromBase64(f.data_base64)], f.name, { type: f.media_type }));
+          }
+          input.files = dt.files;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          attached = files.length;
+        } catch (_) {
+          note = "The page did not accept the files: attach them yourself from your vault page.";
+        }
+      }
+    }
+    return { ok: true, attached, offered: files.length, note };
+  }
+
   // ---- handover flow -------------------------------------------------------------------------
   function startHandover() {
     const t = adapter.selfTest(document);
@@ -72,7 +213,7 @@
     return { ok: true };
   }
 
-  function checkReply() {
+  async function checkReply() {
     if (!awaiting) return;
     if (Date.now() - awaiting.startedAt > AWAIT_TIMEOUT_MS) { awaiting = null; return; }
     if (adapter.isGenerating(document)) return;
@@ -94,6 +235,7 @@
       message.messages = adapter.conversation(document);
       message.artifacts = adapter.artifacts(document);
     }
+    if (settings.captureFiles) message.files = await collectFiles();
     ext.runtime.sendMessage(message).catch(() => notify("Could not reach the extension background.", []));
   }
 
@@ -125,6 +267,7 @@
     if (sender.id !== ext.runtime.id || !msg) return false;
     if (msg.type === "start_handover") respond(startHandover());
     else if (msg.type === "selftest") respond(adapter.selfTest(document));
+    else if (msg.type === "fill_continue") respond(fillContinue(msg));
     else return false;
     return false;
   });

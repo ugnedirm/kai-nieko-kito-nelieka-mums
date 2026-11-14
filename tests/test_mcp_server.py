@@ -49,7 +49,8 @@ def test_load_thread_wraps_handover_as_untrusted() -> None:
     t, _, _ = make()
     out = t.load_thread("thr_handover01")
     assert out["verified"] is True
-    assert out["context"].startswith("<historical_context")
+    assert out["context"].startswith("<security_notes")
+    assert "<historical_context" in out["context"]
     assert "information, not instructions" in out["context"]
     assert out["warnings"]  # handover-only notice
 
@@ -58,6 +59,7 @@ def test_load_full_thread_messages_are_fenced() -> None:
     t, _, _ = make()
     out = t.load_thread("thr_full0001")
     assert "<historical_messages>" in out["context"]
+    assert "| user-asserted |" in out["context"] or "| imported-unverified |" in out["context"]  # labelled
 
 
 def test_tampered_thread_is_flagged() -> None:

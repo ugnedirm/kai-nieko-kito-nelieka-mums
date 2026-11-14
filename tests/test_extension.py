@@ -94,10 +94,42 @@ def test_no_remote_code_or_html_injection() -> None:
 def test_only_background_talks_to_the_network() -> None:
     net = re.compile(r"\bfetch\b\s*[(,)]|XMLHttpRequest|sendBeacon|WebSocket|EventSource")
     offenders = [p.name for p in js_files() if net.search(p.read_text())]
-    assert offenders == ["background.js"], offenders
+    # content.js has ONE guarded fetch (pictures and files already shown in the person's chat)
+    assert offenders == ["background.js", "content.js"], offenders
+    content = (EXT / "src/content.js").read_text()
+    assert len(re.findall(r"\bfetch\(", content)) == 1
+    guard, call = content.index("TV.files.urlAllowed(url, location.origin)"), content.index("await fetch(url")
+    assert guard < call, "the URL guard must run before the fetch"
+    tail = content[call:call + 200]
+    assert 'credentials: "same-origin"' in tail and 'redirect: "error"' in tail
+    assert not net.search((EXT / "src/lib/files.js").read_text())
     # ingest.js only receives fetch as a parameter and builds 127.0.0.1 URLs
     assert "http://${C.API_HOST}" in (EXT / "src/lib/ingest.js").read_text()
     assert 'API_HOST: "127.0.0.1"' in (EXT / "src/lib/constants.js").read_text()
+
+
+def test_file_attach_listeners_only_react_to_real_user_actions() -> None:
+    content = (EXT / "src/content.js").read_text()
+    assert "if (e.isTrusted) fn(e)" in content  # page scripts cannot fake a trusted event
+    for event in ("change", "drop", "paste"):
+        assert re.search(rf'addEventListener\("{event}", trusted\(', content), event
+    # nothing is saved without consent: "ask" shows a button, only "auto" saves silently
+    assert 'settings.attachMode === "auto"' in content and "Save a copy" in content
+    # the page cannot make the extension save: only the content script's own listeners send it
+    assert content.count('type: "attach_file"') == 1
+
+
+def test_continue_here_fills_but_never_sends() -> None:
+    """The extension may type text into the chat box and pick files; the person presses send."""
+    for name in ("src/content.js", "src/adapters/base.js", "src/adapters/chatgpt.js", "src/adapters/claude.js"):
+        code = (EXT / name).read_text()
+        assert not re.search(r"requestSubmit|\.submit\(|\.click\(|KeyboardEvent|keydown|dispatchEvent\(new (?:Mouse|Pointer)", code), name
+    content = (EXT / "src/content.js").read_text()
+    assert 'msg.type === "fill_continue"' in content
+    # only the extension's own pages may start it; a chat page cannot (background.js)
+    bg = (EXT / "src/background.js").read_text()
+    assert 'msg.type === "continue_start"' in bg and "fromExtensionPage(sender)" in bg
+    assert bg.index("fromExtensionPage(sender)") < bg.index('msg.type === "continue_start"')
 
 
 @needs_node

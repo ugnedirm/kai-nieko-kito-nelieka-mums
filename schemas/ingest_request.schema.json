@@ -116,7 +116,7 @@
               "required": ["name", "media_type", "size", "data_base64"],
               "properties": {
                 "name": { "type": "string", "minLength": 1, "maxLength": 255 },
-                "media_type": { "type": "string", "maxLength": 127 },
+                "media_type": { "type": "string", "maxLength": 127, "description": "Advisory only: the vault decides the stored media type from the detected format (SPEC 8.6)." },
                 "size": { "type": "integer", "minimum": 0, "maximum": 52428800 },
                 "data_base64": { "type": "string" }
               }

@@ -22,9 +22,10 @@ from mcp.shared.exceptions import MCPError
 from pydantic import BaseModel
 
 from threadvault.agent.handover import PROMPT_VERSION, parse_reply
-from threadvault.core.accesslog import AccessLog, MemoryAccessLog
-from threadvault.core.render import handover_text
-from threadvault.core.vault import FixtureVault, Vault
+from threadvault.core.accesslog import AccessLog
+from threadvault.core.pack import file_context, security_notes
+from threadvault.core.render import handover_text, labelled_message_line, plain
+from threadvault.core.vault import Vault
 from threadvault.policy.engine import decide, destination_profile
 from threadvault.policy.engine import load_policy as _load_policy
 from threadvault.privacy.outbound import (
@@ -36,6 +37,7 @@ from threadvault.privacy.outbound import (
     wrap_messages,
 )
 from threadvault.privacy.redact import PseudonymMap
+from threadvault.scanners import injection
 from threadvault.scanners.basic import scan_record, scan_text
 from threadvault.types import SECRET_KINDS, Finding, Record
 
@@ -138,9 +140,25 @@ class ConnectorTools:
         report = self._vault.verify(thread_id)
         records = self._vault.load_thread(thread_id).branches[bid].records
         handovers = [r for r in records if r["type"] == "handover"]
-        # Messages as text, handover always wrapped as untrusted history (SPEC 7.1).
-        # Everything is redacted for this destination before it leaves (SPEC 9).
-        text = self._vault.render_text(thread_id, bid).split("--- handover ---")[0].rstrip()
+        # Messages as labelled text (who wrote it and how far to trust that, from the record),
+        # handover always wrapped as untrusted history (SPEC 7.1). Everything is redacted for this
+        # destination before it leaves (SPEC 9), and a <security_notes> block comes first.
+        forgotten = {r["target"].get("id") for r in records
+                     if r["type"] == "tombstone" and r["target"].get("kind") == "message"}
+        lines: list[str] = []
+        flagged: list[tuple[str, list[str]]] = []
+        if handovers:
+            head_cats = injection.categories(handover_text(handovers[-1]))
+            if head_cats:
+                flagged.append((f"handover v{int(handovers[-1]['version'])}", head_cats))
+        for r in records:
+            if r["type"] == "message" and r["id"] not in forgotten:
+                line, cats = labelled_message_line(r)
+                lines.append(line)
+                if cats:
+                    flagged.append((f"message {int(r['seq'])} ({plain(r.get('provenance', 'unknown'))})",
+                                    cats))
+        text = "\n".join(lines)
         parts: list[str] = []
         hidden: dict[str, int] = {}
         outs: list[Outbound] = []
@@ -161,7 +179,8 @@ class ConnectorTools:
         self._audit("load", "allowed", thread_id)
         return {"thread_id": thread_id, "branch_id": bid, "verified": report.ok,
                 "warnings": warnings, "hidden": dict(sorted(hidden.items())),
-                "context": "\n\n".join(parts)}
+                "flagged": len(flagged),
+                "context": "\n\n".join([security_notes(thread_id, flagged), *parts])}
 
     def append(self, thread_id: str, branch_id: str, role: str, text: str,
                model: str | None = None) -> Record:
@@ -210,7 +229,9 @@ class ConnectorTools:
                     "note": "binary file: content not sent"}
         self._sendable("get_file", None, out)
         self._audit("get_file", "allowed", None)
-        return {"sha256": sha256, "size": len(data), "text": out.text[:MAX_TEXT_FILE_CHARS],
+        shown = out.text[:MAX_TEXT_FILE_CHARS]
+        return {"sha256": sha256, "size": len(data),
+                "text": file_context("file", sha256, "text", shown),  # wrapped as data, flagged
                 "truncated": len(out.text) > MAX_TEXT_FILE_CHARS, "hidden": out.counts()}
 
     def prepare_handover(self, thread_id: str, branch_id: str | None, reply: str) -> Record:
@@ -315,20 +336,28 @@ def load_policy(path: Path) -> Record | None:
     return loaded.policy
 
 
-def main() -> None:
-    vault = FixtureVault()  # TODO: swap for Person A's disk vault when it lands
-    policy_path = Path(os.environ.get(POLICY_ENV, str(Path(__file__).resolve().parents[3]
-                                                      / "tests" / "fixtures" / "vault" / "policy.json")))
+def run(root: Path, client: str = DEFAULT_CLIENT, destination: str = DEFAULT_DESTINATION) -> None:
+    """Serve the connector over stdio for a real on-disk vault (what Claude Desktop starts)."""
+    from threadvault.core.accesslog import FileAccessLog
+    from threadvault.core.disk import DiskVault
+
+    vault = DiskVault(root)
+    log = FileAccessLog(root / "access.jsonl")
+    policy = load_policy(Path(os.environ.get(POLICY_ENV, str(root / "policy.json"))))
     map_path = os.environ.get(PSEUDONYMS_ENV)
-    tools = ConnectorTools(vault, load_policy(policy_path), MemoryAccessLog(),
-                           os.environ.get(CLIENT_ENV, DEFAULT_CLIENT),
-                           os.environ.get(DESTINATION_ENV, DEFAULT_DESTINATION),
+    tools = ConnectorTools(vault, policy, log, client, destination,
                            PseudonymMap(Path(map_path) if map_path else None))
     build_server(tools).run("stdio")
+
+
+def main() -> None:
+    root = Path(os.environ.get("THREADVAULT_DIR") or Path.home() / ".threadvault")
+    run(root, os.environ.get(CLIENT_ENV, DEFAULT_CLIENT),
+        os.environ.get(DESTINATION_ENV, DEFAULT_DESTINATION))
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["ConnectorTools", "build_server", "load_policy", "main"]
+__all__ = ["ConnectorTools", "build_server", "load_policy", "main", "run"]

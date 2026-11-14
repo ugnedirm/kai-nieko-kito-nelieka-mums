@@ -92,6 +92,16 @@ def handover_diff(vault: Vault, thread_id: str, v_from: int, v_to: int,
     return diff_text(handover_text(by_version[v_from]), handover_text(by_version[v_to]))
 
 
+def latest_handover(vault: Vault, thread_id: str, branch_id: str | None = None) -> tuple[int, str] | None:
+    """(version, plain text) of the newest handover on the branch, or None if there is none."""
+    data = vault.load_thread(thread_id)
+    bid = branch_id or str(data.manifest["current_branch"])
+    handovers = [r for r in lineage(data, bid) if r["type"] == "handover"]
+    if not handovers:
+        return None
+    return int(handovers[-1]["version"]), handover_text(handovers[-1])
+
+
 def first_divergence(a: ThreadView, b: ThreadView) -> int | None:
     """Index of the first row where two views differ, or None if one is a prefix of the other."""
     for i, (x, y) in enumerate(zip(a.rows, b.rows, strict=False)):

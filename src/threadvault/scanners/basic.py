@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from threadvault.scanners import injection
 from threadvault.types import Finding, Record, Severity
 
 _RULES: list[tuple[str, Severity, re.Pattern[str]]] = [
@@ -18,14 +19,16 @@ _RULES: list[tuple[str, Severity, re.Pattern[str]]] = [
     ("api_key", "high", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("connection_string", "high", re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@]+@[^\s/]+")),
     ("private_key", "high", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
-    ("prompt_injection", "medium",
-     re.compile(r"ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions", re.IGNORECASE)),
 ]
 
 
 def scan_text(text: str, path: str = "$") -> list[Finding]:
-    return [Finding(kind=kind, severity=sev, path=path, start=m.start(), end=m.end())
-            for kind, sev, rx in _RULES for m in rx.finditer(text)]
+    found = [Finding(kind=kind, severity=sev, path=path, start=m.start(), end=m.end())
+             for kind, sev, rx in _RULES for m in rx.finditer(text)]
+    # Instruction-like text aimed at an AI (see scanners/injection.py). `detail` is the category.
+    found += [Finding(kind="prompt_injection", severity=injection.severity(h.category), path=path,
+                      start=h.start, end=h.end, detail=h.category) for h in injection.find(text)]
+    return found
 
 
 def scan_record(obj: Any, path: str = "$") -> list[Finding]:

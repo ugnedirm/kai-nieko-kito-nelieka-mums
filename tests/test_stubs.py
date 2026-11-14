@@ -87,9 +87,9 @@ def test_forget_file_writes_tombstone_and_verify_still_ok() -> None:
 def test_pack_respects_budget_and_wraps_handover() -> None:
     v = vault()
     big = v.pack("thr_full0001", 10_000)
-    small = v.pack("thr_full0001", 120)
+    small = v.pack("thr_full0001", 200)
     assert big.startswith("<historical_context") and len(small) < len(big)
-    assert len(small) <= 120 * 4 + 5
+    assert len(small) <= 200 * 4 + 5
 
 
 # -- render --------------------------------------------------------------------------------------

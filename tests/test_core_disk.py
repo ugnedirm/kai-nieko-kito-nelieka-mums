@@ -202,13 +202,14 @@ def test_pack_order_wrapping_and_budget(vault: DiskVault) -> None:
     vault.append(tid, "main0001", handover(files=[{"sha256": ref["sha256"], "name": "notes.txt",
                                                    "description": "itinerary"}]))
     big = vault.pack_result(tid, 100_000)
-    assert big.text.startswith("<historical_context")
+    assert big.text.startswith("<security_notes")  # the standing rule comes before any content
+    assert big.text.index("<historical_context") < big.text.index("<historical_files")
     assert big.files_included == [ref["sha256"]] and big.messages_included == 30
     assert big.text.count("</historical_files>") == 1  # the file's fake closing tag is neutralised
     assert big.tokens <= big.max_tokens and big.verified
 
-    small = vault.pack_result(tid, 450)
-    assert small.tokens <= 450 and 0 < small.messages_included < 30
+    small = vault.pack_result(tid, 760)
+    assert small.tokens <= 760 and 0 < small.messages_included < 30
     assert "message number 29" in small.text and "message number 0 " not in small.text
     assert small.text.index("<historical_context") < small.text.index("<historical_messages")
 
@@ -233,7 +234,9 @@ def test_pack_omits_binary_and_forgotten_files() -> None:
              ({"sha256": "sha256:" + "22" * 32, "name": "gone.txt", "media_type": "text/plain"}, None)]
     res = build_pack(thread_id="thr_x0000001", records=[], files=files, max_tokens=1000,
                      verified=True, counter=approx_tokens)
-    assert res.files_included == [] and len(res.files_omitted) == 2 and res.text == ""
+    assert res.files_included == [] and len(res.files_omitted) == 2
+    assert "<historical_messages" not in res.text
+    assert "NOT included here" in res.text  # the AI is told the files exist, not given their bytes
 
 
 def test_default_counter_falls_back_offline(monkeypatch: pytest.MonkeyPatch) -> None:

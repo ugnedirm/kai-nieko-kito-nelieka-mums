@@ -4,19 +4,24 @@ from __future__ import annotations
 
 import json
 import os
+import time
+import urllib.request
+import webbrowser
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
 from threadvault import schemas
 from threadvault.agent.handover import parse_reply
+from threadvault.cli import attach, autostart, lifecycle
 from threadvault.cli import serve as serve_mod
 from threadvault.cli.context import load_policy, open_log, open_vault, vault_root
 from threadvault.cli.redact import ExportRefused, apply_profile
 from threadvault.cli.safe import terminal_safe
+from threadvault.core.accesslog import FileAccessLog, filter_entries, format_entries
 from threadvault.core.lineage import ForkError
 from threadvault.core.render import handover_text
 from threadvault.core.vault import Vault
@@ -24,7 +29,8 @@ from threadvault.importers import chatgpt, claude, gemini, markdown
 from threadvault.importers.base import ImportedThread, ImportRefused
 from threadvault.importers.scan import scan_import, summarize
 from threadvault.importers.store import store_import
-from threadvault.policy.engine import destination_profile
+from threadvault.policy.engine import check_policy, destination_profile
+from threadvault.policy.plugins import PINS_FORMAT, Pins, PluginRefused, pin_entry
 from threadvault.scanners.basic import scan_record
 from threadvault.types import SECRET_KINDS
 
@@ -33,6 +39,12 @@ import_app = typer.Typer(help="Import conversations from an export file", no_arg
 app.add_typer(import_app, name="import")
 token_app = typer.Typer(help="The token the browser extension uses", no_args_is_help=True)
 app.add_typer(token_app, name="token")
+file_app = typer.Typer(help="Files attached to a thread", no_args_is_help=True)
+app.add_typer(file_app, name="file")
+policy_app = typer.Typer(help="Who may do what (policy.json)", no_args_is_help=True)
+app.add_typer(policy_app, name="policy")
+plugin_app = typer.Typer(help="Plugins you trust (pinned by hash)", no_args_is_help=True)
+app.add_typer(plugin_app, name="plugin")
 handover_app = typer.Typer(help="Work with handovers", no_args_is_help=True)
 app.add_typer(handover_app, name="handover")
 MAX_REPLY_BYTES = 1024 * 1024
@@ -254,18 +266,36 @@ def export(ctx: typer.Context, thread_id: str, destination: str, out: Path,
 
 STARTER_POLICY = {
     "spec_version": "1", "type": "policy", "default_profile": "strict",
-    "clients": [{"client_id": "browser-extension", "capabilities": ["append", "save_handover"]}],
-    "destinations": [{"destination_id": "local", "kind": "local", "profile": "open"}],
+    "clients": [{"client_id": "browser-extension",
+                 "capabilities": ["append", "save_handover", "export"]}],
+    "destinations": [
+        {"destination_id": "local", "kind": "local", "profile": "open"},
+        {"destination_id": "chatgpt", "kind": "cloud-llm", "profile": "share",
+         "allow_hosts": ["chatgpt.com", "chat.openai.com"]},
+        {"destination_id": "claude", "kind": "cloud-llm", "profile": "share",
+         "allow_hosts": ["claude.ai"]},
+        {"destination_id": "gemini", "kind": "cloud-llm", "profile": "share",
+         "allow_hosts": ["gemini.google.com"]},
+        {"destination_id": "openai", "kind": "cloud-llm", "profile": "strict",
+         "allow_hosts": ["api.openai.com"]},
+        {"destination_id": "anthropic", "kind": "cloud-llm", "profile": "strict",
+         "allow_hosts": ["api.anthropic.com"]}],
     "profiles": {
         "open": {"redact": [], "pseudonymize": False, "block_on_secrets": False,
                  "allow_attachments": True, "strip_file_metadata": False},
+        "share": {"redact": ["email", "phone", "api_key", "secret", "person"],
+                  "pseudonymize": False, "block_on_secrets": True,
+                  "allow_attachments": True, "strip_file_metadata": True},
         "strict": {"redact": ["email", "phone", "api_key", "secret", "person"],
                    "pseudonymize": True, "block_on_secrets": True, "allow_attachments": False,
                    "strip_file_metadata": True}}}
 
 
 @app.command()
-def init(ctx: typer.Context) -> None:
+def init(ctx: typer.Context,
+         update_policy: Annotated[bool, typer.Option(
+             "--update-policy", help="Replace policy.json with the current starter policy "
+                                     "(the old file is kept as policy.json.bak)")] = False) -> None:
     """Create the vault, its extension token and a starter policy.json (extension may save)."""
     root = vault_root(ctx.obj)
     _vault(ctx)  # creates the directory layout
@@ -273,12 +303,18 @@ def init(ctx: typer.Context) -> None:
     had_token = token_path.exists()
     serve_mod.ensure_token(root)
     policy_path = root / "policy.json"
-    if policy_path.exists():
-        _echo("policy.json already exists: left unchanged")
+    text = json.dumps(STARTER_POLICY, indent=2) + "\n"
+    if policy_path.exists() and update_policy:
+        policy_path.replace(root / "policy.json.bak")
+        policy_path.write_text(text, encoding="utf-8")
+        _echo("policy.json updated (the old one is kept as policy.json.bak)")
+    elif policy_path.exists():
+        _echo("policy.json already exists: left unchanged "
+              "(use --update-policy to get the newest starter policy)")
     else:
-        policy_path.write_text(json.dumps(STARTER_POLICY, indent=2) + "\n", encoding="utf-8")
-        _echo("wrote policy.json: only 'browser-extension' may append and save handovers; "
-              "every other client and destination is denied")
+        policy_path.write_text(text, encoding="utf-8")
+        _echo("wrote policy.json: the browser extension may save and prepare text for ChatGPT, "
+              "Claude and Gemini (private details hidden, secrets blocked); everything else is denied")
     _echo(f"vault ready at {root}" + ("" if had_token else "; token created (thread token show)"))
 
 
@@ -292,7 +328,7 @@ def token_show(ctx: typer.Context) -> None:
 def serve(ctx: typer.Context,
           port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
           origin: Annotated[list[str] | None, typer.Option(
-              help="Allowed extension origin, e.g. chrome-extension://<id> (repeatable)")] = None,
+              help="Pre-approve an extension origin (normally not needed: use Connect)")] = None,
           ) -> None:
     """Run the local ingest service the browser extension saves to (127.0.0.1 only)."""
     root = vault_root(ctx.obj)
@@ -304,13 +340,14 @@ def serve(ctx: typer.Context,
     if policy is None:
         _echo("warning: no usable policy.json, so every request will be refused "
               "(run `thread init`): " + "; ".join(problems))
-    if not origins:
-        _echo("warning: no --origin given: requests carrying an Origin header will be refused")
     try:
-        server = serve_mod.serve(_vault(ctx), policy, open_log(ctx.obj),
-                                 serve_mod.ensure_token(root), origins, port)
+        # Changes made from the vault pages (merge, delete, forget, sweep) are logged as the "ui".
+        server = serve_mod.serve(open_vault(ctx.obj, actor=("vault-page", "ui")), policy,
+                                 open_log(ctx.obj),
+                                 serve_mod.ensure_token(root), origins, port, root)
     except OSError:
         raise _fail("cannot listen on that port (in use?)") from None
+    server.start_sweeper()
     _echo(f"serving on http://127.0.0.1:{server.server_address[1]}  (Ctrl-C to stop)")
     try:
         server.serve_forever()
@@ -318,3 +355,385 @@ def serve(ctx: typer.Context,
         _echo("stopped")
     finally:
         server.server_close()
+
+
+def _alive(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/health", timeout=1.5) as r:
+            return bool(r.status == 200)
+    except OSError:
+        return False
+
+
+@app.command("open")
+def open_vault_pages(ctx: typer.Context,
+                     port: Annotated[int, typer.Option(help="Port of the running service")] = 8765,
+                     ) -> None:
+    """Open your saved threads in the browser (a readable page: no terminal needed after this)."""
+    root = vault_root(ctx.obj)
+    if not _alive(port):
+        raise _fail("the vault service is not running: run `thread setup` once (starts it "
+                    "automatically), or `thread serve`")
+    url = f"http://127.0.0.1:{port}/s/{serve_mod.make_login_code(root)}"
+    _echo("opening your saved threads in the browser...")
+    if not webbrowser.open(url):
+        _echo("could not open a browser; open this link yourself (works once, for 2 minutes):")
+        _echo(url)
+
+
+@app.command()
+def setup(ctx: typer.Context,
+          port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
+          yes: Annotated[bool, typer.Option("--yes", help="Do not ask questions")] = False,
+          remove: Annotated[bool, typer.Option("--remove", help="Undo the automatic start")] = False,
+          ) -> None:
+    """One-time setup: create the vault, start the service at every login, open your threads."""
+    if remove:
+        try:
+            _echo(autostart.remove())
+        except autostart.AutostartError as e:
+            raise _fail(str(e)) from None
+        return
+    init(ctx)
+    root = vault_root(ctx.obj)
+    if not autostart.supported():
+        _echo("Automatic start is not available here. Start the service yourself with "
+              "`thread serve` whenever you want to save from the browser.")
+    elif yes or typer.confirm("Start threadvault automatically when you log in? "
+                              "(runs only on this computer, no administrator rights)", default=True):
+        try:
+            _echo(autostart.install(root, port))
+        except autostart.AutostartError as e:
+            raise _fail(f"could not set up automatic start: {e}") from None
+        for _ in range(20):
+            if _alive(port):
+                break
+            time.sleep(0.5)
+    if _alive(port):
+        _echo("The vault service is running.")
+        _echo("Next: install the browser extension, click its icon and press "
+              "'Connect to my vault'. To see saved threads later: click the icon, then "
+              "'Open my saved threads' (or run `thread open`).")
+    else:
+        _echo("The service is not running yet: run `thread serve` in a terminal.")
+
+
+@file_app.command("add")
+def file_add(ctx: typer.Context, thread_id: str, path: Path,
+             yes: Annotated[bool, typer.Option("--yes", help="Attach even if hidden details may remain")
+                            ] = False) -> None:
+    """Attach a file of yours to a thread. Hidden details (photo location, author) are removed."""
+    try:
+        raw = path.read_bytes() if path.stat().st_size <= attach.MAX_FILE_BYTES else None
+    except OSError:
+        raise _fail("file not found or unreadable") from None
+    if raw is None:
+        raise _fail("file too large")
+    prepared = attach.prepare(raw, attach.clean_name(path.name))
+    if not prepared.complete:
+        _echo("This file may still contain hidden details the cleaner cannot remove:")
+        for n in prepared.notes:
+            _echo("  - " + n)
+        if not yes and not typer.confirm("Attach it anyway?", default=False):
+            raise _fail("not attached")
+    try:
+        ref = _vault(ctx).put_file(thread_id, attach.clean_name(path.name), prepared.media_type,
+                                   prepared.cleaned)
+    except (KeyError, ValueError):
+        raise _fail("no such thread") from None
+    _echo(f"attached {ref['name']} ({ref['size']} bytes) to {thread_id}")
+
+
+@app.command()
+def merge(ctx: typer.Context, source: str, target: str) -> None:
+    """Move the files of a files-only thread into another thread, then remove the empty one."""
+    try:
+        moved = _vault(ctx).merge_files(source, target)
+    except KeyError:
+        raise _fail("no such thread") from None
+    except ValueError as e:
+        raise _fail(str(e)) from None
+    _echo(f"moved {moved} file(s) into {target}; {source} was removed")
+
+
+def _find_file(vault: Vault, thread_id: str, which: str) -> str:
+    """A file of a thread by name or by sha256; refuses when a name is ambiguous."""
+    files = vault.load_thread(thread_id).manifest["files"]
+    hits = [f for f in files if which in (f["sha256"], f["name"])]
+    if not hits:
+        raise _fail("no such file in that thread (see `thread show`)")
+    if len({f["sha256"] for f in hits}) > 1:
+        raise _fail("several files have that name: use the sha256 from `thread show`")
+    return str(hits[0]["sha256"])
+
+
+@app.command()
+def forget(ctx: typer.Context, thread_id: str, file: str,
+           yes: Annotated[bool, typer.Option("--yes", help="Do not ask")] = False) -> None:
+    """Delete a file everywhere (every thread that holds it) and leave a note in the history."""
+    vault = _vault(ctx)
+    try:
+        sha = _find_file(vault, thread_id, file)
+    except KeyError:
+        raise _fail("no such thread") from None
+    if not yes and not typer.confirm("Delete this file from EVERY thread that has it? "
+                                     "This cannot be undone.", default=False):
+        raise _fail("not deleted")
+    vault.forget_file(sha)
+    _echo(f"forgotten: {sha}")
+
+
+@app.command()
+def delete(ctx: typer.Context, thread_id: str,
+           yes: Annotated[bool, typer.Option("--yes", help="Do not ask")] = False) -> None:
+    """Delete a whole thread now. Files no other thread uses are deleted with it."""
+    if not yes and not typer.confirm(f"Delete {thread_id} and everything in it? This cannot be "
+                                     "undone.", default=False):
+        raise _fail("not deleted")
+    try:
+        _vault(ctx).delete_thread(thread_id)
+    except (KeyError, ValueError):
+        raise _fail("no such thread") from None
+    _echo(f"deleted {thread_id}")
+
+
+@app.command()
+def expire(ctx: typer.Context, thread_id: str,
+           in_: Annotated[str | None, typer.Option("--in", help="Delete after this long: 12h, 7d, 2w")] = None,
+           at: Annotated[str | None, typer.Option(help="Delete at this time, e.g. 2026-12-01T09:00:00Z")] = None,
+           never: Annotated[bool, typer.Option("--never", help="Remove the expiry")] = False,
+           file: Annotated[str | None, typer.Option(help="Apply to one file (name or sha256) instead")] = None,
+           ) -> None:
+    """Make a thread (or one file) delete itself later. Needs the service running, or `thread sweep`."""
+    if sum([in_ is not None, at is not None, never]) != 1:
+        raise _fail("give exactly one of --in, --at or --never")
+    try:
+        when = None if never else (lifecycle.expires_in(in_) if in_ else at)
+    except lifecycle.BadDuration as e:
+        raise _fail(str(e)) from None
+    vault = _vault(ctx)
+    try:
+        if file:
+            vault.set_file_expiry(thread_id, _find_file(vault, thread_id, file), when)
+        else:
+            vault.set_expiry(thread_id, when)
+    except KeyError:
+        raise _fail("no such thread or file") from None
+    except ValueError:
+        raise _fail("that is not a valid time") from None
+    _echo("expiry removed" if when is None else f"will be deleted at {when}")
+
+
+@app.command()
+def sweep(ctx: typer.Context) -> None:
+    """Delete everything whose expiry time has passed (the running service does this by itself)."""
+    _echo(f"removed {_vault(ctx).sweep_expired()} expired thread(s) and file(s)")
+
+
+@app.command("log")
+def access_log(ctx: typer.Context,
+               thread_id: Annotated[str | None, typer.Option("--thread", help="Only this thread")] = None,
+               limit: Annotated[int, typer.Option(help="Newest entries to show")] = 40,
+               denied: Annotated[bool, typer.Option("--denied", help="Only refused requests")] = False,
+               ) -> None:
+    """Show who opened or changed what and when (the append-only access log) and whether it is intact."""
+    log = FileAccessLog(vault_root(ctx.obj) / "access.jsonl")
+    entries = filter_entries(log.entries(), thread_id=thread_id, outcome="denied" if denied else None)
+    _echo(format_entries(entries, issues=log.verify(), limit=limit))
+
+
+# -- policy: who may do what ------------------------------------------------------------------------
+CAPABILITIES = ("read", "append", "file_read", "save_handover", "export", "forget", "network")
+
+
+def _policy_doc(ctx: typer.Context) -> tuple[Path, dict[str, Any]]:
+    path = vault_root(ctx.obj) / "policy.json"
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise _fail("no usable policy.json here: run `thread init` first") from None
+    return path, doc
+
+
+def _write_policy(path: Path, doc: dict[str, Any]) -> None:
+    problems = check_policy(doc)
+    if problems:
+        raise _fail("that change would make policy.json invalid: " + "; ".join(problems[:3]))
+    path.replace(path.with_suffix(".json.bak"))
+    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+
+@policy_app.command("show")
+def policy_show(ctx: typer.Context) -> None:
+    """Show which clients may do what, and where data may be sent. Everything else is denied."""
+    _, doc = _policy_doc(ctx)
+    for problem in check_policy(doc):
+        _echo(f"PROBLEM: {problem}")
+    _echo("Clients (default deny: anyone not listed gets nothing):")
+    for c in doc["clients"]:
+        _echo(f"  {c['client_id']}: {', '.join(c['capabilities']) or '(nothing)'}")
+    _echo("Destinations (where text may be prepared or sent):")
+    for d in doc["destinations"]:
+        hosts = f"  hosts: {', '.join(d.get('allow_hosts', []))}" if d.get("allow_hosts") else ""
+        prof = doc["profiles"].get(d["profile"], {})
+        extra = "  blocks secrets" if prof.get("block_on_secrets") else ""
+        _echo(f"  {d['destination_id']} ({d['kind']}, profile {d['profile']}){hosts}{extra}")
+
+
+@policy_app.command("allow")
+def policy_allow(ctx: typer.Context, client: str, capabilities: list[str]) -> None:
+    """Give a client capabilities: read append file_read save_handover export forget network."""
+    bad = [c for c in capabilities if c not in CAPABILITIES]
+    if bad:
+        raise _fail(f"unknown capability: {bad[0]} (choose from {', '.join(CAPABILITIES)})")
+    path, doc = _policy_doc(ctx)
+    entry = next((c for c in doc["clients"] if c["client_id"] == client), None)
+    if entry is None:
+        entry = {"client_id": client, "capabilities": []}
+        doc["clients"].append(entry)
+    entry["capabilities"] = sorted(set(entry["capabilities"]) | set(capabilities))
+    _write_policy(path, doc)
+    _echo(f"{client} may now: {', '.join(entry['capabilities'])}  (old policy kept as policy.json.bak)")
+
+
+@policy_app.command("revoke")
+def policy_revoke(ctx: typer.Context, client: str, capabilities: Annotated[
+        list[str] | None, typer.Argument(help="Capabilities to remove (default: all)")] = None) -> None:
+    """Take capabilities away from a client (all of them if none are named)."""
+    path, doc = _policy_doc(ctx)
+    entry = next((c for c in doc["clients"] if c["client_id"] == client), None)
+    if entry is None:
+        raise _fail("that client is not in the policy (so it already has nothing)")
+    if capabilities:
+        entry["capabilities"] = [c for c in entry["capabilities"] if c not in capabilities]
+    else:
+        doc["clients"].remove(entry)
+    _write_policy(path, doc)
+    _echo(f"updated {client}  (old policy kept as policy.json.bak)")
+
+
+# -- plugins: pinned by hash --------------------------------------------------------------------------
+def _pins_path(ctx: typer.Context) -> Path:
+    return vault_root(ctx.obj) / "plugins.json"
+
+
+def _load_pins_doc(ctx: typer.Context) -> dict[str, Any]:
+    path = _pins_path(ctx)
+    if not path.exists():
+        return {"format": PINS_FORMAT, "plugins": []}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        Pins.parse(doc)
+    except (OSError, ValueError, PluginRefused):
+        raise _fail("plugins.json is damaged: no plugin will be loaded until it is fixed") from None
+    return dict(doc)
+
+
+@plugin_app.command("pin")
+def plugin_pin(ctx: typer.Context, name: str, path: Path,
+               note: Annotated[str, typer.Option(help="What it is, for you")] = "",
+               yes: Annotated[bool, typer.Option("--yes", help="Do not ask")] = False) -> None:
+    """Trust exactly this plugin file. If the file ever changes, it will be refused."""
+    try:
+        entry = pin_entry(name, path, note)
+    except PluginRefused as e:
+        raise _fail(str(e)) from None
+    _echo(f"{name}: {entry['sha256']}")
+    if not yes and not typer.confirm("You are about to trust this exact code to run with access to "
+                                     "your vault. Have you read it?", default=False):
+        raise _fail("not pinned")
+    doc = _load_pins_doc(ctx)
+    doc["plugins"] = [p for p in doc["plugins"] if p["name"] != name] + [entry]
+    _pins_path(ctx).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    _echo(f"pinned. It still needs capabilities: thread policy allow plugin:{name} read ...")
+
+
+@plugin_app.command("list")
+def plugin_list(ctx: typer.Context) -> None:
+    """Show the pinned plugins."""
+    plugins = _load_pins_doc(ctx)["plugins"]
+    if not plugins:
+        _echo("no plugins are pinned, so none can load")
+    for p in plugins:
+        _echo(f"{p['name']}  {p['sha256']}  {p.get('note', '')}")
+
+
+@plugin_app.command("check")
+def plugin_check(ctx: typer.Context, name: str, path: Path) -> None:
+    """Does this file still match what you pinned? Exit code 1 if not."""
+    pins = Pins.parse(_load_pins_doc(ctx))
+    try:
+        data = path.read_bytes()
+    except OSError:
+        raise _fail("cannot read that file") from None
+    decision = pins.check(name, data)
+    _echo(("ok: " if decision.allowed else "REFUSED: ") + decision.reason)
+    if not decision.allowed:
+        raise typer.Exit(1)
+
+
+@plugin_app.command("unpin")
+def plugin_unpin(ctx: typer.Context, name: str) -> None:
+    """Stop trusting a plugin."""
+    doc = _load_pins_doc(ctx)
+    if not any(p["name"] == name for p in doc["plugins"]):
+        raise _fail("that plugin is not pinned")
+    doc["plugins"] = [p for p in doc["plugins"] if p["name"] != name]
+    _pins_path(ctx).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    _echo(f"{name} is no longer trusted")
+
+
+# -- Claude Desktop (MCP) and a second opinion ----------------------------------------------------------
+@app.command()
+def mcp(ctx: typer.Context,
+        client: Annotated[str, typer.Option(help="Policy client id")] = "claude-desktop",
+        destination: Annotated[str, typer.Option(help="Policy destination id")] = "claude") -> None:
+    """Run the connector that lets Claude Desktop read and save in your vault (started by it)."""
+    from threadvault.connector import mcp_server
+
+    mcp_server.run(vault_root(ctx.obj), client, destination)
+
+
+@app.command("mcp-config")
+def mcp_config(ctx: typer.Context,
+               allow: Annotated[bool, typer.Option(
+                   "--allow", help="Also let Claude Desktop read, append and save handovers")] = False,
+               ) -> None:
+    """Print the Claude Desktop setting that connects it to your vault (and optionally allow it)."""
+    import sys as _sys
+
+    root = vault_root(ctx.obj)
+    command = str(Path(_sys.executable).parent / "thread")
+    cfg = {"mcpServers": {"threadvault": {"command": command, "args": ["--vault", str(root), "mcp"]}}}
+    _echo("Add this to Claude Desktop's config file (Settings > Developer > Edit Config):")
+    _echo(json.dumps(cfg, indent=2))
+    if allow:
+        policy_allow(ctx, "claude-desktop", ["read", "append", "save_handover"])
+    else:
+        _echo("Claude Desktop gets nothing until you allow it:  thread policy allow claude-desktop "
+              "read append save_handover   (or re-run with --allow). Handovers still ask you first.")
+
+
+@app.command()
+def ask(ctx: typer.Context, thread_id: str, branch: str, question: str,
+        model: Annotated[str, typer.Option(help="e.g. openai/gpt-5 or anthropic/claude-sonnet-4-5")],
+        to: Annotated[str, typer.Option(help="Destination in policy.json: openai or anthropic")] = "openai",
+        ) -> None:
+    """Ask a second AI the same question on a fork (private details hidden first). Needs API keys
+    in your environment, the `llm` extra, and: thread policy allow second-ai read append network."""
+    from threadvault.agent.second_ai import SecondAI, SecondAIError
+
+    vault = _vault(ctx)
+    policy = load_policy(ctx.obj)
+    if policy is None:
+        raise _fail("no usable policy.json: run `thread init`")
+    try:
+        out = SecondAI(vault, policy, open_log(ctx.obj)).ask(
+            thread_id, branch, question, destination_id=to, model=model)
+    except SecondAIError as e:
+        raise _fail(f"refused: {e}") from None
+    _echo(out.answer)
+    if out.hidden:
+        _echo("(hidden before sending: " + ", ".join(f"{n} {k}" for k, n in out.hidden.items()) + ")")
+    for w in out.warnings:
+        _echo(f"warning: {w}")

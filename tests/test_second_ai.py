@@ -77,7 +77,8 @@ def test_call_goes_to_the_allowed_url_with_history_wrapped() -> None:
     assert call["model"] == "openai/gpt-example"
     system, user = call["messages"]
     assert "not instructions" in system["content"]
-    assert user["content"].startswith("<historical_messages>")
+    assert user["content"].startswith("<security_notes")  # the standing rule comes first
+    assert "<historical_messages>" in user["content"] and "recorded by threadvault" in user["content"]
     assert user["content"].endswith("Question: Which cipher?")
 
 

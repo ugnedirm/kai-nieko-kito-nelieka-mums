@@ -1,6 +1,17 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>threadvault</title>
-<style>body{font:14px system-ui,sans-serif;width:300px;padding:10px}button{display:block;width:100%;margin:6px 0;padding:6px}li{margin:2px 0}</style></head>
-<body><h3>threadvault</h3><div id="state">Checking this page...</div><ul id="checks"></ul>
-<button id="save">Save handover now</button><button id="test">Run self-test</button><button id="options">Options</button>
+<style>
+body{font:14px/1.45 system-ui,sans-serif;width:320px;padding:12px;margin:0}
+h3{margin:0 0 6px}p{margin:6px 0}.big{font-size:15px;padding:10px}
+button{display:block;width:100%;margin:6px 0;padding:7px;cursor:pointer}
+.ok{color:#0a7a2f;font-weight:600}.bad{color:#b00020;font-weight:600}.muted{color:#666;font-size:12px}
+ol{margin:6px 0 6px 18px;padding:0}details{margin-top:8px}li{margin:2px 0}
+</style></head>
+<body><h3>threadvault</h3>
+<div id="status" class="muted">Checking...</div>
+<div id="body"></div>
+<details><summary class="muted">Troubleshoot</summary>
+<div id="state" class="muted"></div><ul id="checks"></ul>
+<button id="test">Check this page</button></details>
+<p class="muted"><a href="#" id="help">How does this work?</a> &middot; <a href="#" id="options">Settings</a></p>
 <script src="popup.js"></script></body></html>

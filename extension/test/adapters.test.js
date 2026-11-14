@@ -45,6 +45,19 @@ test("selfTest passes and conversation keeps order and roles from selectors", ()
   assert.equal(a.lastAssistantText(doc), "answer 2");
 });
 
+test("chatgpt adapter v2 finds the current composer and reply markup", () => {
+  const a = adapterFor("chatgpt.com");
+  const doc = fakeDoc({
+    "div[contenteditable='true'][role='textbox'][aria-label='Ask ChatGPT']": [""],
+    "[data-user-message-bubble='true']": ["question one"],
+    "[data-dil-response]": ["reply two"],
+  });
+  assert.equal(a.selfTest(doc).conversationOk, true);
+  assert.deepEqual(a.conversation(doc).map((m) => m.role), ["user", "assistant"]);
+  assert.equal(a.selfTest(doc).ok, true);
+  assert.equal(a.lastAssistantText(doc), "reply two");
+});
+
 test("page text claiming a role does not change the role", () => {
   const a = adapterFor("claude.ai");
   const doc = fakeDoc({
@@ -72,4 +85,21 @@ test("fillInput never overwrites a draft and reports why", () => {
   assert.equal(a.fillInput(doc, "PROMPT"), "busy");
   assert.equal(box.value, "half-typed message");
   assert.equal(a.fillInput({ title: "", querySelector: () => null, querySelectorAll: () => [] }, "x"), "missing");
+});
+
+test("attachments lists pictures and file links inside messages only, as plain strings", () => {
+  const a = adapterFor("claude.ai");
+  const mk = (imgs, links) => ({ innerText: "msg", compareDocumentPosition() { return 4; },
+    querySelectorAll: (s) => (s === "img[src]" ? imgs : s === "a[href]" ? links : []) });
+  const root = mk(
+    [{ currentSrc: "blob:https://claude.ai/aaa", naturalWidth: 400, naturalHeight: 300, alt: "chart" },
+      { src: "https://claude.ai/avatar.png", naturalWidth: 24, naturalHeight: 24, alt: "" }], // icon: skipped
+    [{ href: "https://claude.ai/files/report.pdf", getAttribute: () => null, hasAttribute: () => false },
+      { href: "https://claude.ai/settings", getAttribute: () => null, hasAttribute: () => false }]);
+  const doc = { title: "", querySelector: () => null,
+    querySelectorAll: (s) => (s === "[data-testid='user-message']" ? [root] : []) };
+  const found = a.attachments(doc);
+  assert.deepEqual(found.map((f) => f.kind + ":" + f.url), [
+    "image:blob:https://claude.ai/aaa", "link:https://claude.ai/files/report.pdf"]);
+  for (const f of found) assert.equal(typeof f.url, "string");
 });

@@ -460,8 +460,31 @@ def _sanitize_ooxml(data: bytes, rep: _Report) -> bytes:
             rep.kept("hidden_content", "hidden slides")
 
         # Parts this sanitizer does not clean: say so rather than claim a clean file.
-        if any(re.match(r"(word|xl|ppt)/media/", n) for n in names):
-            rep.kept("file_metadata", "embedded images may carry their own EXIF/GPS metadata")
+        media = sorted(part for part in names if re.match(r"(word|xl|ppt)/media/", part))
+        if media:
+            cleaned_count, unhandled = 0, 0
+            for part in media:
+                raw = pkg.parts[part]
+                sub = _Report("embedded image")
+                if raw.startswith(b"\xff\xd8\xff"):  # judged by content, never by the file name
+                    new = _sanitize_jpeg(raw, sub)
+                elif raw.startswith(_PNG_SIG):
+                    new = _sanitize_png(raw, sub)
+                else:
+                    unhandled += 1
+                    continue
+                if not sub.complete:
+                    unhandled += 1
+                    continue
+                if new != raw:
+                    pkg.parts[part] = new
+                    cleaned_count += 1
+            if cleaned_count:
+                rep.removed("file_metadata", f"hidden details (EXIF, GPS, comments) inside "
+                            f"{cleaned_count} embedded image(s)", "medium")
+            if unhandled:
+                rep.kept("file_metadata", f"{unhandled} embedded image(s) in a format the cleaner "
+                         "cannot clean (for example GIF, SVG or EMF) may carry hidden details")
         if any(re.match(r"(word|xl|ppt)/embeddings/", n) for n in names):
             rep.kept("hidden_content", "embedded objects (other files inside this one)")
         if any(n.startswith("customXml/") for n in names):

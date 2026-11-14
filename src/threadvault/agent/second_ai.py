@@ -30,7 +30,8 @@ from pathlib import Path
 from typing import Any
 
 from threadvault.core.accesslog import AccessLog, MemoryAccessLog
-from threadvault.core.render import message_line
+from threadvault.core.pack import security_notes
+from threadvault.core.render import handover_text, labelled_message_line, plain
 from threadvault.core.vault import FixtureVault, Vault
 from threadvault.policy.engine import check_url, decide, load_policy
 from threadvault.privacy.outbound import (
@@ -41,6 +42,7 @@ from threadvault.privacy.outbound import (
     wrap_messages,
 )
 from threadvault.privacy.redact import PseudonymMap
+from threadvault.scanners import injection
 from threadvault.scanners.basic import scan_text
 from threadvault.types import SECRET_KINDS, Record
 
@@ -165,13 +167,25 @@ class SecondAI:
     # --- building what is sent ----------------------------------------------------------
 
     def _context(self, thread_id: str, branch_id: str, destination_id: str,
-                 warnings: list[str]) -> list[Outbound]:
+                 warnings: list[str]) -> tuple[list[Outbound], list[tuple[str, list[str]]]]:
         report = self._vault.verify(thread_id)
         if not report.ok:
             warnings.append("verification FAILED: the second AI was told not to trust this")
         records = self._vault.load_thread(thread_id).branches[branch_id].records
         handovers = [r for r in records if r["type"] == "handover"]
-        lines = [message_line(r) for r in records if r["type"] == "message"]
+        flagged: list[tuple[str, list[str]]] = []
+        if handovers:
+            head_cats = injection.categories(handover_text(handovers[-1]))
+            if head_cats:
+                flagged.append((f"handover v{int(handovers[-1]['version'])}", head_cats))
+        lines: list[str] = []
+        for r in records:
+            if r["type"] == "message":
+                line, cats = labelled_message_line(r)  # who said it comes from the record
+                lines.append(line)
+                if cats:
+                    flagged.append((f"message {int(r['seq'])} ({plain(r.get('provenance', 'unknown'))})",
+                                    cats))
         text = "\n".join(lines)
         if len(text) > MAX_CONTEXT_CHARS:
             text = text[-MAX_CONTEXT_CHARS:]
@@ -185,7 +199,7 @@ class SecondAI:
                                          verified=report.ok, mapping=self._map))
         if text:
             outs.append(prepare_text(self._policy, destination_id, text, self._map, "messages"))
-        return outs
+        return outs, flagged
 
     # --- the call -------------------------------------------------------------------------
 
@@ -199,7 +213,7 @@ class SecondAI:
 
         warnings: list[str] = []
         try:
-            outs = self._context(thread_id, branch_id, destination_id, warnings)
+            outs, flagged = self._context(thread_id, branch_id, destination_id, warnings)
             q = prepare_text(self._policy, destination_id, question, self._map, "question")
         except Refused as e:
             raise self._refuse(thread_id, str(e)) from None
@@ -210,9 +224,9 @@ class SecondAI:
             for k, n in out.counts().items():
                 hidden[k] = hidden.get(k, 0) + n
 
-        body = "\n\n".join(
+        body = "\n\n".join([security_notes(thread_id, flagged)] + [
             o.text if o.text.startswith("<historical_context")
-            else wrap_messages(o.text) for o in outs)
+            else wrap_messages(o.text) for o in outs])
         messages = [{"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": f"{body}\n\nQuestion: {q.text}".lstrip()}]
 

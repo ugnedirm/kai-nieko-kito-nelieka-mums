@@ -23,6 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from threadvault.scanners import injection
 from threadvault.scanners.secrets import find_secrets
 from threadvault.types import Finding, Record, Severity
 
@@ -41,12 +42,6 @@ _PII: list[tuple[str, Severity, re.Pattern[str]]] = [
     ("address", "low", re.compile(
         r"\b\d{1,5}\s+(?:[A-Z][a-z]+\s){1,3}(?:Street|St\.|Avenue|Ave\.?|Road|Rd\.|Boulevard|Blvd"
         r"|Lane|Drive|Dr\.|g\.|gatvė|al\.|pr\.)(?!\w)")),
-    ("prompt_injection", "medium", re.compile(
-        r"(?i)\b(?:ignore|disregard|forget)\s+(?:all\s+|any\s+)?(?:the\s+)?"
-        r"(?:previous|prior|above|earlier)\s+(?:instructions|prompts|messages|rules)"
-        r"|\byou\s+are\s+now\s+(?:in\s+)?(?:developer|DAN|jailbreak|unrestricted)"
-        r"|\breveal\s+(?:your\s+|the\s+)?system\s+prompt"
-        r"|<\s*/?\s*historical_(?:context|files|messages)")),
 ]
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,3})?\b")
 _SSN = re.compile(r"\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b")
@@ -85,6 +80,8 @@ def scan_text(text: str, path: str = "$") -> list[Finding]:
     out += [Finding(kind="national_id", severity="medium", path=path, start=m.start(), end=m.end())
             for rx, ok in ((_SSN, None), (_BALTIC_ID, _baltic_id_ok))
             for m in rx.finditer(text) if ok is None or ok(m.group())]
+    out += [Finding(kind="prompt_injection", severity=injection.severity(h.category), path=path,
+                    start=h.start, end=h.end, detail=h.category) for h in injection.find(text)]
     return sorted(out, key=lambda f: (f.start or 0, f.kind))
 
 

@@ -22,13 +22,13 @@ def vault_root(path: Path | None) -> Path:
     return path if path is not None else Path.home() / ".threadvault"
 
 
-def open_vault(path: Path | None) -> Vault:
+def open_vault(path: Path | None, actor: tuple[str, str] = ("cli", "cli")) -> Vault:
     keystore = None
     if os.environ.get("THREADVAULT_KEYCHAIN") == "1":
         from threadvault.core.signing import KeyringKeyStore
 
         keystore = KeyringKeyStore()
-    return DiskVault(vault_root(path), keystore=keystore)
+    return DiskVault(vault_root(path), keystore=keystore, actor=actor)
 
 
 def load_policy(path: Path | None) -> Record | None:

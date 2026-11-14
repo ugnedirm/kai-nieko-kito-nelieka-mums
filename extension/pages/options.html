@@ -1,11 +1,20 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>threadvault options</title><link rel="stylesheet" href="style.css"></head>
-<body><h1>threadvault options</h1>
-<p><small>Get the token with <code>thread token show</code>. It is stored in this browser profile only and sent only to 127.0.0.1.</small></p>
+<html lang="en"><head><meta charset="utf-8"><title>threadvault settings</title><link rel="stylesheet" href="style.css"></head>
+<body><h1>threadvault settings</h1>
+<p id="conn" class="warn">Checking...</p>
+<p><button id="connect" type="button">Connect to my vault</button>
+<a href="welcome.html">How does this work?</a></p>
+<h2>Saving</h2>
+<p><label>Remind me every <input id="every" type="number" min="1" max="500"> replies to save a summary</label>
+<select id="mode"><option value="remind">remind me</option><option value="fill">type the request for me</option><option value="off">never remind me</option></select></p>
+<p><label><input id="full" type="checkbox"> Also save the whole conversation, not just the summary (kept as unverified)</label></p>
+<p><label><input id="files" type="checkbox"> Also offer pictures and files shown in the chat (you choose which ones on the review page)</label></p>
+<p><label>When I attach a file to the chat:
+<select id="attach"><option value="ask">ask me if a copy should go to threadvault</option>
+<option value="auto">save a copy automatically</option><option value="off">do nothing</option></select></label></p>
+<p><button id="save">Save settings</button> <span id="msg"></span></p>
+<details><summary>Advanced</summary>
+<p><small>Normally you never need these. Connecting fills in the token for you.</small></p>
 <p><label>Vault token <input id="token" type="password" autocomplete="off" size="50"></label></p>
-<p><label>Vault service port <input id="port" type="number" min="1024" max="65535"></label></p>
-<p><label>Checkpoint every <input id="every" type="number" min="1" max="500"> replies</label>
-<select id="mode"><option value="remind">remind me</option><option value="fill">fill the handover request for me</option><option value="off">off</option></select></p>
-<p><label><input id="full" type="checkbox"> Full mode: also offer to save the whole conversation (stored as unverified)</label></p>
-<p><button id="save">Save</button> <span id="msg"></span></p>
+<p><label>Vault service port <input id="port" type="number" min="1024" max="65535"></label></p></details>
 <script src="../src/lib/constants.js"></script><script src="options.js"></script></body></html>

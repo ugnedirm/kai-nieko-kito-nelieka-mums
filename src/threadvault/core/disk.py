@@ -533,6 +533,17 @@ class DiskVault:
                 entry["expires_at"] = expires_at
             self._write_manifest(manifest)
 
+    def delete_thread(self, thread_id: str) -> None:
+        """Delete a whole thread now (the person asked). Files no other thread uses go with it."""
+        with self._lock:
+            self._manifest(thread_id)  # KeyError / ValueError if it does not exist
+            self._delete_thread(thread_id, "thread deleted by the user")
+
+    def sweep_expired(self) -> int:
+        """Run the expiry sweep; returns how many threads and files were removed."""
+        report = self.sweep()
+        return len(report.threads_deleted) + len(report.files_forgotten)
+
     def sweep(self, now: str | None = None) -> SweepReport:
         """Delete expired threads and forget expired files (tombstone reason `expired`).
 
@@ -557,7 +568,30 @@ class DiskVault:
                                       f"files_forgotten={len(report.files_forgotten)}")
             return report
 
-    def _delete_thread(self, thread_id: str) -> None:
+    def merge_files(self, source_id: str, target_id: str) -> int:
+        """Move the files of a thread that holds nothing but files into another thread, then
+        delete the emptied source. Returns how many files the target gained. Refuses a source with
+        any saved text (handover or message): merging chains would rewrite verified history.
+        A file is only removed from disk if no thread still uses it (blobs are shared)."""
+        with self._lock:
+            if source_id == target_id:
+                raise ValueError("cannot merge a thread into itself")
+            snap = self.snapshot(source_id)
+            if any(rs for rs in snap.chains.values()):
+                raise ValueError("that thread has saved text; only a thread with nothing but files "
+                                 "can be merged")
+            source = self._manifest(source_id)
+            target = self._manifest(target_id)
+            have = {f["sha256"] for f in target["files"]}
+            added = [dict(f) for f in source["files"] if f["sha256"] not in have]
+            target["files"].extend(added)
+            target["updated_at"] = self._clock()
+            self._write_manifest(target)
+            self._log("append", thread_id=target_id, detail=f"files merged in: {len(added)}")
+            self._delete_thread(source_id, "merged into another thread")
+            return len(added)
+
+    def _delete_thread(self, thread_id: str, detail: str = "thread expired and deleted") -> None:
         snap = self.snapshot(thread_id)
         mine = _manifest_refs(snap.manifest)
         mine |= {s for rs in snap.chains.values() for r in rs if r for s in _record_refs(r)}
@@ -570,7 +604,7 @@ class DiskVault:
                            for s in _record_refs(r)}
         for sha in mine - still_used:
             self.blobs.delete(sha)
-        self._log("sweep", thread_id=thread_id, detail="thread expired and deleted")
+        self._log("sweep", thread_id=thread_id, detail=detail)
 
     # -- verify -------------------------------------------------------------------------------------
     def trusted_keys(self) -> dict[str, Any] | None:

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Welcome to threadvault</title>
+<link rel="stylesheet" href="style.css"></head>
+<body><main>
+<h1>Welcome to threadvault</h1>
+<p>threadvault saves a summary of your ChatGPT or Claude chat on <b>your own computer</b>, so you can
+continue the same work in another AI, or later, without starting over. Nothing is sent to us or
+anywhere else.</p>
+
+<h2>Step 1. Start your vault (once)</h2>
+<p>The vault is a small program on your computer that keeps your saved chats. Open the
+<b>Terminal</b> app (press Cmd+Space, type Terminal, press Enter), paste this line, press Enter and
+answer Yes:</p>
+<p><code>thread setup</code></p>
+<p><small>It creates your vault and makes it start by itself each time you log in, so you only do
+this once. (If you do not have it yet, install threadvault first: see the README.)</small></p>
+<p id="running" class="warn">Checking...</p>
+
+<h2>Step 2. Connect this browser</h2>
+<p>This lets the extension save to your vault. A page opens asking you to click <b>Allow</b>.</p>
+<p><button id="connect" type="button">Connect to my vault</button></p>
+<p id="connected" class="warn">Not connected yet.</p>
+
+<h2>Step 3. Save a chat</h2>
+<ol>
+<li>Open a chat on ChatGPT or Claude.</li>
+<li>Click the threadvault icon in the toolbar (the puzzle piece if you do not see it), then
+<b>Save this chat's summary</b>.</li>
+<li>Press <b>send</b> in the chat. The AI writes a short summary.</li>
+<li>A review page opens. Read it, fix anything wrong, press <b>Save</b>.</li>
+</ol>
+<p>To read or reuse what you saved: click the icon, then <b>Open my saved threads</b>. Each thread has a
+<b>Copy for another AI</b> button: paste it into any other AI to carry on.</p>
+
+<h2>Good to know</h2>
+<ul>
+<li>You always review the summary before it is saved. If it contains something that looks like a
+password or key, the vault refuses to save it.</li>
+<li>The AI's summary can be wrong. Treat it as notes, not facts.</li>
+</ul>
+<script src="../src/lib/constants.js"></script><script src="welcome.js"></script>
+</main></body></html>
