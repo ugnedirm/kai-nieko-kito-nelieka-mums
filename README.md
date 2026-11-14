@@ -376,9 +376,9 @@ open it.
 
 ## Moving a conversation to another AI
 
-1. On a thread's page, under **Continue in another AI**, pick where you will paste it. This works
-   with any AI: if yours is not in the list, pick ChatGPT or Claude, they hide the same private
-   details.
+1. On a thread's page, under **Continue in another AI**, pick where you will paste it: `local`,
+   ChatGPT, Claude, Gemini, OpenAI or Anthropic. This works with any AI: if yours is not in the
+   list, pick ChatGPT or Claude, they hide the same private details.
 2. Press **Copy for another AI**.
 3. Paste it into the new chat.
 
@@ -516,7 +516,7 @@ permission away again.
 | | What it is | What the policy says |
 |---|---|---|
 | **Clients** | programs that use your vault: browser extension, Claude Desktop, plugins | their capabilities (below) |
-| **Destinations** | where text may go: ChatGPT, Claude, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
+| **Destinations** | where text may go: local, ChatGPT, Claude, Gemini, OpenAI, Anthropic | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
 
 Capabilities a client can get:
 - `read`: read threads
