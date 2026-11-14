@@ -147,10 +147,6 @@ Install it from the store, or from the zip on the Releases page: see
 | Upgrade | run `sh install.sh` again | run step 2 again with the newer wheel link |
 | Remove the program | `sh install.sh --uninstall` | delete the folder `%USERPROFILE%\threadvault` |
 
-On Windows, if deleting says the folder is "being used by another process", stop `thread serve`
-(Ctrl+C), close the other PowerShell and File Explorer windows that are in that folder, and try
-again (or restart the computer).
-
 Removing the program never touches your saved threads.
 
 Maintainers: see `docs/RELEASING.md` (releases, store listings and what is still open) and
