@@ -19,7 +19,7 @@ dev = ["rfc3339-validator>=0.1.4", "pytest>=8", "hypothesis>=6", "ruff>=0.5", "m
        "keyring>=24", "pypdf>=5", "tiktoken>=0.7"]
 keychain = ["keyring>=24"]
 sanitize = ["pypdf>=5"]
-mcp = ["mcp>=1.0"]
+mcp = ["mcp>=2.3"]
 ui = ["streamlit>=1.35"]
 agent = ["anthropic>=2.8"]
 llm = ["litellm>=1.40", "tiktoken>=0.7"]
