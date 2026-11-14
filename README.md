@@ -548,6 +548,8 @@ Needs `pip install -e ".[llm]"` and an API key in your environment (for example
 
 ## Command reference
 
+### Start
+
 | Command | What it does |
 |---|---|
 | `thread init [--update-policy]` | create the vault, token and starter policy |
@@ -555,20 +557,43 @@ Needs `pip install -e ".[llm]"` and an API key in your environment (for example
 | `thread serve` | run the local service in this terminal |
 | `thread open` | open the vault page in your browser |
 | `thread token show` | print the extension token (you normally never need it) |
+
+### Save and view
+
+| Command | What it does |
+|---|---|
 | `thread import chatgpt\|claude\|gemini\|markdown <file>` | import conversations (stored as unverified) |
-| `thread list` / `show` / `pack` | list threads / print one / print what an AI would receive |
-| `thread verify [id]` | recompute hashes; exit code 1 if anything was changed |
+| `thread list` / `show` | list threads / print one |
+| `thread pack` | print the wrapped text an AI would get, **before** private details are hidden (use `export` to see the cleaned version) |
 | `thread fork <id>` | new branch sharing history; becomes current |
 | `thread merge <files-only> <target>` | move files into the chat's thread |
 | `thread handover add <id> <reply-file>` | save an AI-written handover after you review it |
 | `thread file add <id> <file>` | attach a file (cleaned) |
-| `thread export <id> <destination> <out>` | write a thread for a destination in the policy |
+
+### Move and share
+
+| Command | What it does |
+|---|---|
+| `thread export <id> <destination> <out>` | write a thread for a destination in the policy, cleaned for it |
+| `thread ask ...` | second opinion |
+
+### 🔒 Privacy and security
+
+| Command | What it does |
+|---|---|
+| `thread verify [id]` | recompute hashes; exit code 1 if anything was changed |
 | `thread forget`, `expire`, `sweep`, `delete` | keep and delete |
 | `thread log` | the access log |
 | `thread policy show\|allow\|revoke` | who may do what |
 | `thread plugin pin\|list\|check\|unpin` | trusted plugins |
+
+### Connections
+
+| Command | What it does |
+|---|---|
 | `thread mcp-config [--allow]`, `thread mcp` | Claude Desktop connector |
-| `thread ask ...` | second opinion |
+
+### Extras
 
 Compare page for people who prefer Streamlit: `streamlit run src/threadvault/ui/app.py -- --vault "$THREADVAULT_DIR"`.
 
