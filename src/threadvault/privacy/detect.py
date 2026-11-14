@@ -3,6 +3,14 @@
 Regex detectors only (no downloads, no network). Kinds match the `redact` enum in
 policy.schema.json: email, phone, api_key, secret, person, address, national_id, iban.
 
+Secrets use the vault's own rules (`scanners.secrets.find_secrets`, Person A), so anything the
+vault would block is also something redaction hides. Only `high` hits (named secret patterns) are
+used; the scanner's `medium` "random-looking string" hits are not redacted, so ids and hashes in
+normal text are left alone. The earlier rules of this module are kept as well, so redaction is
+never weaker than before, plus two that redaction needs: the whole private key block (not only its
+first line) and "password is <value>" without ":" or "=". The vault's `connection_string` and `private_key`
+kinds are reported as `secret`, the only matching kind in the policy `redact` list.
+
 `Span.value` holds the matched text. It exists only in memory, so the caller can replace it; it
 MUST NOT be logged or returned to a client. Use `Span.finding()` for anything that leaves.
 
@@ -17,6 +25,7 @@ import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from threadvault.scanners.secrets import find_secrets
 from threadvault.types import Finding, Severity
 
 REDACT_KINDS = ("email", "phone", "api_key", "secret", "person", "address", "national_id", "iban")
@@ -70,15 +79,18 @@ def _ssn_ok(code: str) -> bool:
 _Rule = tuple[str, re.Pattern[str], int, Callable[[str], bool] | None]
 
 _RULES: list[_Rule] = [
-    ("secret", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?"
-                          r"(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"), 0, None),
-    ("secret", re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@]+@[^\s/]+[^\s]*"), 0, None),
+    # not in the vault rules: the full key block, and "<keyword> is <value>"
+    ("secret", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?"
+                          r"(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|\Z)"), 0, None),
     ("secret", re.compile(r"(?i:\b(?:password|passwd|pwd|secret|token|api[_-]?key)\b)"
                           # a value needs ":", "=", "is"/"was", or must mix letters and digits,
                           # so "password manager" or "token rotation" stays normal text
                           r"(?:\s*(?:[:=]|\bis\b|\bwas\b)\s*"
                           r"|\s+(?=[^\s,;\"']*\d)(?=[^\s,;\"']*[A-Za-z]))"
                           r"([^\s,;\"']{5,}[^\s,;\"'.])"), 1, None),
+    # the earlier privacy rules, kept so redaction is never weaker than before: user:password in a
+    # URL even with quotes in it, and short "sk-" keys (the vault rules want 32+ characters)
+    ("secret", re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@]+@[^\s/]+[^\s]*"), 0, None),
     ("api_key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), 0, None),
     ("api_key", re.compile(r"\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36}"
                            r"|xox[abpr]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})"), 0, None),
@@ -102,11 +114,18 @@ _RULES: list[_Rule] = [
 def detect(text: str, kinds: Iterable[str], known_people: Iterable[str] = ()) -> list[Span]:
     """Spans of the requested kinds, non-overlapping, sorted by position.
 
-    When two matches overlap, the longer one wins (a connection string beats the email inside it).
+    When matches overlap, the longer one wins (a connection string beats the email inside it),
+    except that a group touching a secret is hidden whole, as one secret.
     `known_people` are names already seen; they are found anywhere in the text.
     """
     wanted = set(kinds)
     found: list[Span] = []
+    for hit in find_secrets(text):
+        if hit.severity != "high":
+            continue  # only named secret patterns; random-looking strings (ids, hashes) stay as is
+        kind = "api_key" if hit.kind == "api_key" else "secret"
+        if kind in wanted:
+            found.append(Span(kind, hit.start, hit.end, text[hit.start:hit.end]))
     for kind, rx, group, check in _RULES:
         if kind not in wanted:
             continue
@@ -119,9 +138,34 @@ def detect(text: str, kinds: Iterable[str], known_people: Iterable[str] = ()) ->
             if len(name) >= 3:
                 for m in re.finditer(rf"(?<!\w){re.escape(name)}(?!\w)", text):
                     found.append(Span("person", m.start(), m.end(), m.group()))
-    found.sort(key=lambda s: (-(s.end - s.start), s.start))
+    found.sort(key=lambda s: (s.start, -s.end))
     kept: list[Span] = []
-    for s in found:
+    cluster: list[Span] = []
+    cluster_end = -1
+    for s in found + [Span("", len(text) + 1, len(text) + 1, "")]:  # sentinel flushes the last one
+        if cluster and s.start >= cluster_end:
+            kept += _resolve(text, cluster)
+            cluster = []
+        cluster.append(s)
+        cluster_end = s.end if len(cluster) == 1 else max(cluster_end, s.end)
+    return kept
+
+
+_SECRET_SPAN_KINDS = ("api_key", "secret")
+
+
+def _resolve(text: str, group: list[Span]) -> list[Span]:
+    """One group of overlapping spans. If any of them is a secret, the whole group is hidden as one
+    secret (part of a secret must never stay visible because a longer email or IBAN overlapped it).
+    Otherwise the longer match wins, as before (a connection string beats the email inside it)."""
+    if len(group) == 1:
+        return group
+    if any(s.kind in _SECRET_SPAN_KINDS for s in group):
+        start, end = min(s.start for s in group), max(s.end for s in group)
+        kind = "secret" if any(s.kind == "secret" for s in group) else "api_key"
+        return [Span(kind, start, end, text[start:end])]
+    kept: list[Span] = []
+    for s in sorted(group, key=lambda s: (-(s.end - s.start), s.start)):
         if all(s.end <= k.start or s.start >= k.end for k in kept):
             kept.append(s)
     return sorted(kept, key=lambda s: s.start)

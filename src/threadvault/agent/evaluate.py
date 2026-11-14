@@ -49,7 +49,7 @@ from threadvault.policy.engine import load_policy
 from threadvault.privacy.detect import REDACT_KINDS, detect
 from threadvault.privacy.outbound import prepare_text
 from threadvault.privacy.redact import PseudonymMap
-from threadvault.scanners.basic import scan_text
+from threadvault.scanners.engine import scan_text
 from threadvault.types import Record
 
 CASES_DIR = Path(__file__).resolve().parent / "eval_cases"
@@ -121,7 +121,9 @@ def sensitive_values(conversation: str) -> list[tuple[str, str]]:
     only: used to check the output, never printed."""
     found = {(s.kind, s.value) for s in detect(conversation, REDACT_KINDS)}
     for f in scan_text(conversation, "$"):
-        if f.kind != "prompt_injection" and f.start is not None and f.end is not None:
+        if (f.kind != "prompt_injection"
+                and not (f.kind == "secret" and f.severity == "medium")  # random-looking only
+                and f.start is not None and f.end is not None):
             found.add((f.kind, conversation[f.start:f.end]))
     return sorted(v for v in found if len(v[1]) >= 4)
 

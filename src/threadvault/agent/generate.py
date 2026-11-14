@@ -24,8 +24,9 @@ from typing import Any
 from threadvault.agent.handover import PROMPT_VERSION, build_prompt, parse_reply, retry_message
 from threadvault.core.accesslog import AccessLog
 from threadvault.policy.engine import destination_profile
+from threadvault.privacy.outbound import blocking_secrets, with_secrets
 from threadvault.scanners.basic import scan_record, scan_text
-from threadvault.types import SECRET_KINDS, Finding, Record
+from threadvault.types import Finding, Record
 
 DESTINATION_ID = "anthropic"
 CLIENT_ID = "handover-agent"
@@ -117,7 +118,9 @@ def _preflight(text: str, policy: Record | None, log: AccessLog, model: str,
                    detail=f"destination={DESTINATION_ID} not in policy")
         raise DestinationNotAllowed(f"destination '{DESTINATION_ID}' is not allowed by policy.json")
     findings = scan_text(text, "$.conversation")
-    if profile["block_on_secrets"] and any(f.kind in SECRET_KINDS for f in findings):
+    secrets = blocking_secrets(text, "$.conversation")  # every secret rule, whole text
+    findings = with_secrets(findings, secrets)
+    if profile["block_on_secrets"] and secrets:
         log.record(client_id=CLIENT_ID, kind="cli", action="send_to_model", outcome="denied",
                    detail=f"destination={DESTINATION_ID} blocked: secrets found")
         raise BlockedByPolicy(findings)

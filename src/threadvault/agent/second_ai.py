@@ -37,14 +37,16 @@ from threadvault.policy.engine import check_url, decide, load_policy
 from threadvault.privacy.outbound import (
     Outbound,
     Refused,
+    blocking_secrets,
     prepare_handover,
     prepare_text,
+    with_secrets,
     wrap_messages,
 )
 from threadvault.privacy.redact import PseudonymMap
 from threadvault.scanners import injection
 from threadvault.scanners.basic import scan_text
-from threadvault.types import SECRET_KINDS, Record
+from threadvault.types import Record
 
 CLIENT_ID = "second-ai"
 # destination_id -> (LiteLLM provider prefix, API base URL)
@@ -244,7 +246,9 @@ class SecondAI:
         # The answer is untrusted. Real values come back only on this machine.
         answer = self._map.rehydrate(answer)
         findings = scan_text(answer, "answer")
-        if any(f.kind in SECRET_KINDS for f in findings):
+        secrets = blocking_secrets(answer, "answer")
+        findings = with_secrets(findings, secrets)
+        if secrets:
             warnings.append("the answer contains something that looks like a secret")
         provider = PROVIDERS[destination_id][0]
         q_rec = self._vault.append(thread_id, branch_id, {

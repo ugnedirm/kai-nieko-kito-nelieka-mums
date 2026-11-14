@@ -15,6 +15,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from mcp.server.mcpserver import AcceptedElicitation, Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -31,6 +32,7 @@ from threadvault.policy.engine import load_policy as _load_policy
 from threadvault.privacy.outbound import (
     Outbound,
     Refused,
+    blocking_secrets,
     prepare_file,
     prepare_handover,
     prepare_text,
@@ -39,7 +41,7 @@ from threadvault.privacy.outbound import (
 from threadvault.privacy.redact import PseudonymMap
 from threadvault.scanners import injection
 from threadvault.scanners.basic import scan_record, scan_text
-from threadvault.types import SECRET_KINDS, Finding, Record
+from threadvault.types import Finding, Record
 
 CLIENT_ENV = "THREADVAULT_CLIENT"
 DESTINATION_ENV = "THREADVAULT_DESTINATION"
@@ -121,10 +123,9 @@ class ConnectorTools:
             raise self._fail(action, thread_id, f"blocked: {out.reason}")
         return out
 
-    def _secrets_blocked(self, findings: list[Finding]) -> bool:
+    def _secrets_blocked(self, content: Any) -> bool:
         assert self._profile is not None
-        return bool(self._profile.get("block_on_secrets")) and any(
-            f.kind in SECRET_KINDS for f in findings)
+        return bool(self._profile.get("block_on_secrets")) and bool(blocking_secrets(content))
 
     # -- tools -----------------------------------------------------------------------------
     def list_threads(self) -> list[Record]:
@@ -196,7 +197,7 @@ class ConnectorTools:
         if self._pseudonymized():  # the AI saw [PERSON_1]; the vault keeps the real name
             text = self._map.rehydrate(text)
         findings = scan_text(text, "content")
-        if self._secrets_blocked(findings):
+        if self._secrets_blocked(text):
             raise self._fail("append", thread_id, "blocked: contains secrets")
         author: Record = {"kind": "ai" if role == "assistant" else "human", "client": self._client}
         if model and role == "assistant":
@@ -250,7 +251,7 @@ class ConnectorTools:
         if self._pseudonymized():  # store real names, not the AI's [PERSON_1] tokens
             content = self._map.rehydrate_record(content)
         findings = scan_record(content, "content")
-        if self._secrets_blocked(findings):
+        if self._secrets_blocked(content):
             raise self._fail("save_handover", thread_id, "blocked: contains secrets")
         return {"status": "draft", "branch_id": bid, "content": content,
                 "warnings": parsed.warnings, "findings": _kinds(findings)}

@@ -16,9 +16,10 @@ from threadvault.core.accesslog import AccessLog
 from threadvault.core.hashing import canonical_json, sha256_bytes
 from threadvault.core.vault import Vault
 from threadvault.policy.engine import decide, default_profile
+from threadvault.privacy.outbound import blocking_secrets, with_secrets
 from threadvault.scanners.basic import scan_record
 from threadvault.scanners.sanitize import sanitize_file
-from threadvault.types import SECRET_KINDS, Finding, Record
+from threadvault.types import Finding, Record
 
 MAX_FILE_BYTES = 50 * 1024 * 1024
 MEDIA_BY_FORMAT = {
@@ -89,8 +90,11 @@ class IngestService:
             except binascii.Error:
                 return [], False
             findings = []
+            scanned: Any = []
+            path = "$.file"
             try:
-                findings = scan_record(raw.decode("utf-8"), "$.file")
+                scanned = raw.decode("utf-8")
+                findings = scan_record(scanned, path)
             except UnicodeDecodeError:
                 pass
             if profile.get("strip_file_metadata"):
@@ -100,10 +104,16 @@ class IngestService:
                 findings += [Finding(kind=f.kind, severity=f.severity, path="$.file", detail=f.detail)
                              for f in result.findings if (f.detail or "").startswith("NOT removed")]
         elif payload["kind"] == "handover":
-            findings = scan_record(payload["content"], "$.content")
+            scanned, path = payload["content"], "$.content"
+            findings = scan_record(scanned, path)
         else:
-            findings = scan_record([m["content"] for m in payload["messages"]], "$.messages")
-        blocked = bool(profile["block_on_secrets"]) and any(f.kind in SECRET_KINDS for f in findings)
+            scanned, path = [m["content"] for m in payload["messages"]], "$.messages"
+            findings = scan_record(scanned, path)
+        # The block decision reads the whole content with every secret rule; a secret the
+        # findings above do not show yet is added, so the person sees why it was refused.
+        secrets = blocking_secrets(scanned, path)
+        findings = with_secrets(findings, secrets)
+        blocked = bool(profile["block_on_secrets"]) and bool(secrets)
         return findings, blocked
 
     def _prepare_file(self, f: Record) -> tuple[bytes, str]:

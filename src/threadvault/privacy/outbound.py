@@ -11,13 +11,60 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
 from threadvault.core.render import historical_context
 from threadvault.policy.engine import destination_profile
 from threadvault.privacy.redact import PseudonymMap, redact_record, redact_text
-from threadvault.scanners.basic import scan_text
+from threadvault.scanners import basic
+from threadvault.scanners.secrets import find_secrets
 from threadvault.types import SECRET_KINDS, Finding, Record
+
+_CHUNK = 1_000_000  # the vault rules run piece by piece, so any length is read in full...
+_OVERLAP = 20_000  # ...and a secret on the border between two pieces is still seen whole
+
+
+def _strings(obj: Any, path: str) -> Iterator[tuple[str, str]]:
+    if isinstance(obj, str):
+        yield path[:256], obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _strings(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _strings(v, f"{path}[{i}]")
+
+
+def blocking_secrets(obj: Any, path: str = "$") -> list[Finding]:
+    """Secrets that refuse a send or a save, in a string or a JSON-like record.
+
+    Reads the WHOLE text (the vault scanner itself stops after 2,000,000 characters). Never weaker
+    than before: the earlier rules (`scanners.basic`) plus the vault's named secret rules (`high`).
+    The vault's `medium` "random-looking string" hits do not count, so ids and hashes in normal
+    text never block. Findings carry no matched values."""
+    out: list[Finding] = []
+    for p, text in _strings(obj, path):
+        out += [f for f in basic.scan_text(text, p) if f.kind in SECRET_KINDS]
+        for off in range(0, len(text), _CHUNK):
+            out += [Finding(kind=h.kind, severity=h.severity, path=p, start=off + h.start,
+                            end=off + h.end, detail=f"rule={h.rule_id}")
+                    for h in find_secrets(text[off:off + _CHUNK + _OVERLAP])
+                    if h.severity == "high"]
+    return with_secrets([], out)
+
+
+def with_secrets(findings: list[Finding], secrets: list[Finding]) -> list[Finding]:
+    """`findings` plus every secret that is not already listed at the same place (one entry per
+    span, so counts shown to the person are not inflated)."""
+    seen = {(f.path, f.start, f.end) for f in findings}
+    out = list(findings)
+    for f in secrets:
+        if (f.path, f.start, f.end) not in seen:
+            seen.add((f.path, f.start, f.end))
+            out.append(f)
+    return out
 
 
 class Refused(Exception):
@@ -48,7 +95,7 @@ def profile_for(policy: Record | None, destination_id: str) -> Record:
 
 def _finish(destination_id: str, profile: Record, text: str, redacted: list[Finding],
             path: str) -> Outbound:
-    left = [f for f in scan_text(text, path) if f.kind in SECRET_KINDS]
+    left = blocking_secrets(text, path)
     if left and profile.get("block_on_secrets"):
         return Outbound(destination_id, text, redacted, True, "contains secrets")
     return Outbound(destination_id, text, redacted)
@@ -103,5 +150,5 @@ def preview(out: Outbound) -> Record:
             "text": "" if out.blocked else out.text}
 
 
-__all__ = ["Outbound", "Refused", "prepare_file", "prepare_handover", "prepare_text",
-           "preview", "profile_for"]
+__all__ = ["Outbound", "Refused", "blocking_secrets", "prepare_file", "prepare_handover",
+           "prepare_text", "preview", "profile_for", "with_secrets"]
