@@ -361,6 +361,13 @@ recognised); `thread ask` with a real API key; the Streamlit page by hand. There
 support in the extension. Installing still needs developer steps: there is no packaged installer or
 store listing.
 
+## License
+
+MIT: see `LICENSE`. In short, anyone may use, copy, change and share this software, including in
+commercial products, as long as the copyright notice stays with it. It comes with no warranty. The
+extension contains no third-party code. The program depends only on libraries under MIT, BSD or
+Apache licenses (the testing tool `hypothesis` is MPL-2.0 and is not part of what users install).
+
 ## Development
 
 ```

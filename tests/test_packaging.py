@@ -67,3 +67,12 @@ def test_workflows_check_the_tag_and_build_the_package() -> None:
     assert "package_extension.py" in release and "python -m build" in release
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     assert "package:" in ci and "/tmp/clean/bin/thread init" in ci
+
+
+def test_the_project_is_mit_licensed_consistently() -> None:
+    text = (ROOT / "LICENSE").read_text()
+    assert text.startswith("MIT License") and "Copyright (c) 2026" in text
+    assert "THE SOFTWARE IS PROVIDED \"AS IS\"" in text  # the standard no-warranty clause
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert project["license"] == "MIT" and project["license-files"] == ["LICENSE"]
+    assert "## License" in (ROOT / "README.md").read_text()

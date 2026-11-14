@@ -4,11 +4,11 @@ What exists, what a release does, and what only the project owner can do. Read "
 
 ## Not done yet (needs the owner)
 
-- **A license.** There is no `LICENSE` file, and the owner decided "not yet". Public distribution and both
-  stores need one. When you are ready: the copyright line chosen is "Copyright (c) 2026 The When nothing
-  else is left authors"; pick the license text (MIT, Apache-2.0 or AGPL-3.0 were the options), add it as
-  `LICENSE`, and add `license = ...` to `pyproject.toml`. **Do not push a release tag before this**:
-  a published release without a license means nobody else may legally use it.
+The project is MIT-licensed (`LICENSE`, `license = "MIT"` in `pyproject.toml`); that item is done.
+A license is not strictly required by the Chrome Web Store, and Firefox Add-ons asks you to pick one
+("all rights reserved" is allowed): check the current forms. It is needed so that others may legally
+use the code, which the installer and the download links assume.
+
 - **Store accounts and submission.** Nothing has been submitted to the Chrome Web Store or Firefox
   Add-ons. Both need an account in your name (Chrome charges a small one-time developer
   registration fee; check the current amount) and a review that can take days.
