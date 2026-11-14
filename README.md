@@ -661,18 +661,30 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
 
 ## What is and is not verified
 
-Verified by automated tests and by running it: the vault engine, import (Markdown), verify and
-tamper detection, the local service (token, host, origin, pairing, sign-in), saving from ChatGPT and
-Claude, the vault page, redaction and secret blocking, file cleaning, merge, forget, expiry, the
-access log, the Claude Desktop connector protocol (initialise, list tools, call a tool), and the
-prompt-injection wrapper.
+### ✅ Verified by automated tests and by running it
 
-**Not verified end to end**: importing a real ChatGPT, Claude or Gemini export; "Bring it into this
-chat" and automatic file attach on the live sites (they depend on each site's page layout and can
-break when the site changes; the extension turns saving off and says so if the layout is not
-recognised); `thread ask` with a real API key; the Streamlit page by hand. There is no Gemini page
-support in the extension. Installing still needs developer steps: there is no packaged installer or
-store listing.
+- the vault engine, import (Markdown), verify and tamper detection
+- the local service (token, host, origin, pairing, sign-in)
+- saving from ChatGPT and Claude, and the vault page
+- 🔒 redaction and secret blocking, file cleaning
+- merge, forget, expiry, the access log
+- the Claude Desktop connector protocol (initialise, list tools, call a tool)
+- 🛡️ the prompt-injection wrapper
+- on Windows 11: installing, `thread setup` and `thread serve`
+
+### ⏳ Not verified end to end yet
+
+- importing a real ChatGPT, Claude or Gemini export
+- "Bring it into this chat" and automatic file attach on the live sites: they depend on each
+  site's page layout and can break when the site changes; the extension turns saving off and says
+  so if the layout is not recognised
+- `thread ask` with a real API key
+- the Streamlit page by hand
+- the full browser flow on Windows
+
+Also: there is no Gemini page support in the extension. Installing still needs some technical
+steps: there is no store listing yet and no packaged Mac (`.dmg`) or Windows (`.exe`) installer;
+see [Install](#install) for the installer script and the release package.
 
 ## License
 
