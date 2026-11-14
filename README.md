@@ -324,15 +324,20 @@ file you picked, so uploaded documents work. 🔒 Hidden details are removed (se
 
 ## The vault page
 
-Click the icon, then **Open my saved threads** (or run `thread open`). The page is read-only to the
-outside world and needs a one-time sign-in link, so only you can open it.
+Your saved threads in the browser: read them, compare them, move them to another AI, and delete
+what you no longer need.
 
-- **Thread list**, with a suggestion to **merge** a files-only thread into the chat saved just after.
-- **A thread**: a security check, the text ready to paste into another AI, files, attach, auto-delete
-  and delete buttons, and the full record.
-- **Compare**: two threads or branches side by side (summaries line by line, messages side by side,
-  first difference marked).
-- **Access log**: who did what and when, with a check that it was not edited.
+**Open it:** click the extension icon, then **Open my saved threads**, or run `thread open`.
+
+🔒 The page is read-only to the outside world and needs a one-time sign-in link, so only you can
+open it.
+
+| Part of the page | What you find there |
+|---|---|
+| **Thread list** | all your threads, with a suggestion to **merge** a files-only thread into the chat saved just after |
+| **A thread** | 🔒 a security check, the text ready to paste into another AI, files, attach, auto-delete and delete buttons, and the full record |
+| **Compare** | two threads or branches side by side: summaries line by line, messages side by side, first difference marked |
+| **Access log** | 🔒 who did what and when, with a check that it was not edited |
 
 ## Moving a conversation to another AI
 
