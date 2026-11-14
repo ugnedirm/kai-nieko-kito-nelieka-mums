@@ -1,7 +1,9 @@
 import json
+import shutil
 import sys
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from tests.test_fixtures import EXPECTED, VAULT
@@ -10,6 +12,14 @@ from threadvault.cli.safe import terminal_safe
 
 runner = CliRunner()
 V = ["--vault", str(VAULT)]
+
+
+@pytest.fixture(autouse=True)
+def _vault_copy(tmp_path: Path) -> None:
+    """The CLI writes (access log, handovers): run every test on a copy of the sample vault."""
+    copy = tmp_path / "vault"
+    shutil.copytree(VAULT, copy)
+    V[1] = str(copy)
 
 
 def test_terminal_safe_strips_escapes() -> None:
@@ -121,3 +131,25 @@ def test_export_always_redacts_secret_kinds() -> None:
     prof = {"redact": [], "block_on_secrets": False}  # profile forgot to list api_key
     out = apply_profile("key AKIAIOSFODNN7EXAMPLE end", prof)
     assert "AKIAIOSFODNN7EXAMPLE" not in out and "[REDACTED:api_key]" in out
+
+
+def test_imports_persist_between_invocations(tmp_path: Path) -> None:
+    src = tmp_path / "t.md"
+    src.write_text("User: hello\n\nAssistant: hi there\n")
+    own = ["--vault", str(tmp_path / "fresh")]
+    assert runner.invoke(app, [*own, "import", "markdown", str(src)]).exit_code == 0
+    r = runner.invoke(app, [*own, "list"])
+    assert r.exit_code == 0 and r.output.count("thr_") == 1
+    tid = r.output.split()[0]
+    assert runner.invoke(app, [*own, "verify", tid]).exit_code == 0
+    assert "hello" in runner.invoke(app, [*own, "show", tid]).output
+
+
+def test_fork_creates_current_branch() -> None:
+    r = runner.invoke(app, [*V, "fork", "thr_full0001", "--label", "alt"])
+    assert r.exit_code == 0 and "forked thr_full0001 as branch br_" in r.output
+    assert runner.invoke(app, [*V, "verify", "thr_full0001"]).exit_code == 0
+    r = runner.invoke(app, [*V, "fork", "thr_nope"])
+    assert r.exit_code == 1 and "Traceback" not in r.output
+    r = runner.invoke(app, [*V, "fork", "thr_full0001", "--at-hash", "sha256:" + "0" * 64])
+    assert r.exit_code == 1 and "cannot fork" in r.output

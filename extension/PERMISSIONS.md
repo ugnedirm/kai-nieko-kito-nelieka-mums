@@ -17,7 +17,7 @@ Needs review by someone other than the author (C reviews B).
 
 ## Known gaps (to close before a store release)
 
-- The vault HTTP service does not exist yet (open decision in CLAUDE.md). Until it does, the extension cannot save anything end to end.
+- The vault HTTP service is `thread serve` (`src/threadvault/cli/serve.py`). It has been exercised with curl and tests, not yet from a real browser.
 - Adapter selectors have not been checked against the live sites; use the popup self-test, then bump the adapter `version`.
 - The Firefox build asks the user to grant host permissions after install (MV3 behaviour).
 - Terms of service of the chat sites may restrict automated capture (THREAT_MODEL residual risk 4).

@@ -1,34 +1,44 @@
-"""The one place the CLI decides which `Vault` implementation to use.
+"""The one place the CLI decides which `Vault` implementation to use: the on-disk `DiskVault`.
 
-Person A's real on-disk vault replaces `open_vault`. Until then the CLI runs on the in-memory
-`FixtureVault`, so writes do NOT persist between invocations.
+The vault directory is `--vault`, else `$THREADVAULT_DIR`, else `~/.threadvault`.
+Set `THREADVAULT_KEYCHAIN=1` to sign records with a key in the OS keychain (needs the `keychain`
+extra); without it records are hash-chained but unsigned.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from threadvault import schemas
-from threadvault.core.accesslog import AccessLog, MemoryAccessLog
-from threadvault.core.vault import FixtureVault, Vault
+from threadvault.core.accesslog import AccessLog, FileAccessLog
+from threadvault.core.disk import DiskVault
+from threadvault.core.vault import Vault
 from threadvault.types import Record
 
 
+def vault_root(path: Path | None) -> Path:
+    return path if path is not None else Path.home() / ".threadvault"
+
+
 def open_vault(path: Path | None) -> Vault:
-    return FixtureVault(path) if path else FixtureVault()
+    keystore = None
+    if os.environ.get("THREADVAULT_KEYCHAIN") == "1":
+        from threadvault.core.signing import KeyringKeyStore
+
+        keystore = KeyringKeyStore()
+    return DiskVault(vault_root(path), keystore=keystore)
 
 
 def load_policy(path: Path | None) -> Record | None:
     """policy.json of the vault directory, or None (default deny) if absent or invalid."""
-    if path is None:
-        return None
     try:
-        policy = json.loads((path / "policy.json").read_text())
+        policy = json.loads((vault_root(path) / "policy.json").read_text())
     except (OSError, ValueError):
         return None
     return policy if not schemas.errors("policy", policy) else None
 
 
-def open_log() -> AccessLog:
-    return MemoryAccessLog()  # A swaps in the append-only file log
+def open_log(path: Path | None = None) -> AccessLog:
+    return FileAccessLog(vault_root(path) / "access.jsonl")

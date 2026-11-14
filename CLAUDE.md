@@ -59,7 +59,7 @@ Depend on the `Vault` and `AccessLog` Protocols (`core/vault.py`, `core/accesslo
 
 ## Open decisions
 
-- Who builds the HTTP wrapper around `connector/ingest.py` (token, `Host`/`Origin` checks, body
-  limit)? Unassigned. Natural fit: C.
+- The HTTP wrapper around `connector/ingest.py` is `thread serve` (`cli/serve.py`; token,
+  `Host`/`Origin` checks, body limit, rate limit). Still to do: try it from a real browser.
 - Extension token pairing UX, `list` capability, per-thread vs per-vault signing keys
   (see `docs/SPEC.md` section 14).

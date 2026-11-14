@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -12,9 +13,11 @@ import typer
 
 from threadvault import schemas
 from threadvault.agent.handover import parse_reply
-from threadvault.cli.context import load_policy, open_log, open_vault
+from threadvault.cli import serve as serve_mod
+from threadvault.cli.context import load_policy, open_log, open_vault, vault_root
 from threadvault.cli.redact import ExportRefused, apply_profile
 from threadvault.cli.safe import terminal_safe
+from threadvault.core.lineage import ForkError
 from threadvault.core.render import handover_text
 from threadvault.core.vault import Vault
 from threadvault.importers import chatgpt, claude, gemini, markdown
@@ -28,6 +31,8 @@ from threadvault.types import SECRET_KINDS
 app = typer.Typer(help="threadvault: portable AI conversation threads", no_args_is_help=True)
 import_app = typer.Typer(help="Import conversations from an export file", no_args_is_help=True)
 app.add_typer(import_app, name="import")
+token_app = typer.Typer(help="The token the browser extension uses", no_args_is_help=True)
+app.add_typer(token_app, name="token")
 handover_app = typer.Typer(help="Work with handovers", no_args_is_help=True)
 app.add_typer(handover_app, name="handover")
 MAX_REPLY_BYTES = 1024 * 1024
@@ -95,6 +100,33 @@ def import_gemini(ctx: typer.Context, file: Path) -> None:
 def import_markdown(ctx: typer.Context, file: Path) -> None:
     """Import a Markdown/plain-text transcript with User:/Assistant: labels."""
     _run_import(ctx, markdown.import_markdown, file)
+
+
+@app.command("list")
+def list_threads(ctx: typer.Context) -> None:
+    """List the threads in the vault."""
+    for t in _vault(ctx).list_threads():
+        _echo(f"{t.thread_id}  {t.mode}  {len(t.branches)} branch(es)  {t.updated_at}  {t.title}")
+
+
+@app.command()
+def fork(ctx: typer.Context, thread_id: str, branch: str | None = None,
+         label: Annotated[str | None, typer.Option(help="Name for the new branch")] = None,
+         at_hash: Annotated[str | None, typer.Option(
+             help="Fork after the record with this hash (default: the branch's latest)")] = None,
+         handover_version: Annotated[int | None, typer.Option(
+             help="Fork at this handover version")] = None) -> None:
+    """Start a new branch that shares history with an existing one, and make it current."""
+    vault = _vault(ctx)
+    try:
+        bid = vault.fork(thread_id, branch, at_hash=at_hash, handover_version=handover_version,
+                         label=label)
+        vault.set_current_branch(thread_id, bid)
+    except KeyError:
+        raise _fail("no such thread or branch") from None
+    except (ForkError, ValueError):
+        raise _fail("cannot fork: fork point not found") from None
+    _echo(f"forked {thread_id} as branch {bid} (now the current branch)")
 
 
 @app.command()
@@ -196,9 +228,9 @@ def export(ctx: typer.Context, thread_id: str, destination: str, out: Path,
            max_tokens: int = 8000) -> None:
     """Write a thread for a destination in policy.json, after applying its redaction profile."""
     profile = destination_profile(load_policy(ctx.obj), destination)
-    log = open_log()
+    log = open_log(ctx.obj)
     if profile is None:
-        log.record(client_id="cli", kind="human", action="export", outcome="denied",
+        log.record(client_id="cli", kind="cli", action="export", outcome="denied",
                    thread_id=thread_id, detail="destination not allowed")
         raise _fail("destination not in policy: refused")
     try:
@@ -206,7 +238,7 @@ def export(ctx: typer.Context, thread_id: str, destination: str, out: Path,
     except KeyError:
         raise _fail("no such thread") from None
     except ExportRefused as e:
-        log.record(client_id="cli", kind="human", action="export", outcome="denied",
+        log.record(client_id="cli", kind="cli", action="export", outcome="denied",
                    thread_id=thread_id, detail="blocked by profile")
         raise _fail(str(e)) from None
     try:
@@ -215,6 +247,74 @@ def export(ctx: typer.Context, thread_id: str, destination: str, out: Path,
         raise _fail("cannot create output file (does it already exist?)") from None
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(text)
-    log.record(client_id="cli", kind="human", action="export", outcome="allowed",
+    log.record(client_id="cli", kind="cli", action="export", outcome="allowed",
                thread_id=thread_id, detail=f"destination={destination[:64]}")
     _echo(f"exported to {out}")
+
+
+STARTER_POLICY = {
+    "spec_version": "1", "type": "policy", "default_profile": "strict",
+    "clients": [{"client_id": "browser-extension", "capabilities": ["append", "save_handover"]}],
+    "destinations": [{"destination_id": "local", "kind": "local", "profile": "open"}],
+    "profiles": {
+        "open": {"redact": [], "pseudonymize": False, "block_on_secrets": False,
+                 "allow_attachments": True, "strip_file_metadata": False},
+        "strict": {"redact": ["email", "phone", "api_key", "secret", "person"],
+                   "pseudonymize": True, "block_on_secrets": True, "allow_attachments": False,
+                   "strip_file_metadata": True}}}
+
+
+@app.command()
+def init(ctx: typer.Context) -> None:
+    """Create the vault, its extension token and a starter policy.json (extension may save)."""
+    root = vault_root(ctx.obj)
+    _vault(ctx)  # creates the directory layout
+    token_path = root / serve_mod.TOKEN_FILE
+    had_token = token_path.exists()
+    serve_mod.ensure_token(root)
+    policy_path = root / "policy.json"
+    if policy_path.exists():
+        _echo("policy.json already exists: left unchanged")
+    else:
+        policy_path.write_text(json.dumps(STARTER_POLICY, indent=2) + "\n", encoding="utf-8")
+        _echo("wrote policy.json: only 'browser-extension' may append and save handovers; "
+              "every other client and destination is denied")
+    _echo(f"vault ready at {root}" + ("" if had_token else "; token created (thread token show)"))
+
+
+@token_app.command("show")
+def token_show(ctx: typer.Context) -> None:
+    """Print the extension token. Paste it into the extension options; treat it like a password."""
+    typer.echo(serve_mod.ensure_token(vault_root(ctx.obj)))
+
+
+@app.command()
+def serve(ctx: typer.Context,
+          port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
+          origin: Annotated[list[str] | None, typer.Option(
+              help="Allowed extension origin, e.g. chrome-extension://<id> (repeatable)")] = None,
+          ) -> None:
+    """Run the local ingest service the browser extension saves to (127.0.0.1 only)."""
+    root = vault_root(ctx.obj)
+    origins = set(origin or [])
+    for o in origins:
+        if not serve_mod.valid_origin(o):
+            raise _fail("origin must look like chrome-extension://<id> or moz-extension://<id>")
+    policy, problems = serve_mod.load_policy(root)
+    if policy is None:
+        _echo("warning: no usable policy.json, so every request will be refused "
+              "(run `thread init`): " + "; ".join(problems))
+    if not origins:
+        _echo("warning: no --origin given: requests carrying an Origin header will be refused")
+    try:
+        server = serve_mod.serve(_vault(ctx), policy, open_log(ctx.obj),
+                                 serve_mod.ensure_token(root), origins, port)
+    except OSError:
+        raise _fail("cannot listen on that port (in use?)") from None
+    _echo(f"serving on http://127.0.0.1:{server.server_address[1]}  (Ctrl-C to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        _echo("stopped")
+    finally:
+        server.server_close()

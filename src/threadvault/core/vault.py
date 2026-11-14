@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Protocol
 
 from threadvault.core.hashing import record_hash, sha256_bytes
+from threadvault.core.lineage import ForkError
 from threadvault.core.render import handover_text, historical_context, message_line
 from threadvault.types import (
     BranchData,
@@ -43,6 +44,11 @@ class Vault(Protocol):
     def verify(self, thread_id: str) -> VerifyReport: ...
     def render_text(self, thread_id: str, branch_id: str | None = None) -> str: ...
     def pack(self, thread_id: str, max_tokens: int, branch_id: str | None = None) -> str: ...
+    def fork(self, thread_id: str, from_branch: str | None = None, *, at_hash: str | None = None,
+             handover_version: int | None = None, label: str | None = None) -> str:
+        """New branch sharing history with `from_branch` up to a fork point; returns its id."""
+        ...
+    def set_current_branch(self, thread_id: str, branch_id: str) -> None: ...
 
 
 class FixtureVault:
@@ -108,6 +114,39 @@ class FixtureVault:
                                      "created_by": {"kind": "human"}}}
         self._chains[tid] = {bid: []}
         return tid
+
+    def fork(self, thread_id: str, from_branch: str | None = None, *, at_hash: str | None = None,
+             handover_version: int | None = None, label: str | None = None) -> str:
+        src = self._branch(thread_id, from_branch)
+        visible = self._lineage(thread_id, src)
+        if handover_version is not None:
+            target = next((r for r in visible if r["type"] == "handover"
+                           and r["version"] == handover_version), None)
+        elif at_hash is not None:
+            target = next((r for r in visible if r["hash"] == at_hash), None)
+        else:
+            target = visible[-1] if visible else None
+        if target is None:
+            raise ForkError("fork point not found on that branch")
+        owner = next(b for b, chain in self._chains[thread_id].items()
+                     if any(r["hash"] == target["hash"] for r in chain))
+        point: Record = ({"kind": "handover", "version": target["version"]}
+                         if target["type"] == "handover"
+                         else {"kind": "message", "hash": target["hash"]})
+        bid = "br_" + uuid.uuid4().hex[:12]
+        now = "2026-11-14T00:00:00Z"
+        self._branches[thread_id][bid] = {
+            "spec_version": "1", "type": "branch", "branch_id": bid, "thread_id": thread_id,
+            "label": (label or bid)[:100], "parent": {"branch_id": owner, "fork_point": point},
+            "created_at": now, "created_by": {"kind": "human"}}
+        self._chains[thread_id][bid] = []
+        self._manifests[thread_id]["branches"].append({"branch_id": bid, "head_hash": None})
+        return bid
+
+    def set_current_branch(self, thread_id: str, branch_id: str) -> None:
+        if branch_id not in self._branches[thread_id]:
+            raise KeyError("no such branch")
+        self._manifests[thread_id]["current_branch"] = branch_id
 
     def append(self, thread_id: str, branch_id: str, partial: Record) -> Record:
         chain = self._chains[thread_id][branch_id]
