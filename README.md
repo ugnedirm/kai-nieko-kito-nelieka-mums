@@ -341,15 +341,24 @@ open it.
 
 ## Moving a conversation to another AI
 
-On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT, Claude,
-Gemini, ...), then press **Copy for another AI**. For that place the text is cleaned: emails, phone
-numbers, names and keys are hidden. **If a secret is found, nothing is offered for copying.** The
-text is wrapped so the receiving AI treats it as background, not instructions. Choose `local` only
-for use on your own computer (nothing is hidden).
+1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT,
+   Claude, Gemini, ...).
+2. Press **Copy for another AI**.
+3. Paste it into the new chat.
 
-Files do not travel in the text. The text lists files it does not contain ("Files in this record that
-are NOT included here: ..."), so the AI can ask you for them. Use **Bring it into this chat** in the
-extension to attach them automatically, or download them from the page and attach them yourself.
+**🔒 What happens to your data on the way**
+- **Cleaned for that place:** emails, phone numbers, names and keys are hidden.
+- **Secrets stop it:** if a secret is found, nothing is offered for copying.
+- **Wrapped:** the receiving AI treats the text as background, not instructions.
+
+⚠️ Choose `local` only for use on your own computer: there nothing is hidden.
+
+### Files
+
+Files do not travel in the text. The text lists the files it does not contain ("Files in this
+record that are NOT included here: ..."), so the AI can ask you for them. To attach them:
+- use **Bring it into this chat** in the extension, which attaches them automatically, or
+- download them from the page and attach them yourself.
 
 ## Protection against hidden instructions (prompt injection)
 
