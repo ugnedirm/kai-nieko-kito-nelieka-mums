@@ -30,8 +30,9 @@ and it only gets a cleaned copy.
 - ✅ **Trust**: every record is hash-chained, so an edited message is noticed; records can be signed.
 - ↔️ **Move**: take a conversation and its files from one AI to another in a few clicks.
 
-**Status:** working end to end for ChatGPT and Claude in Chrome and Firefox. Gemini and other AIs
-are planned. See
+**Status:** saving chats works end to end for ChatGPT and Claude in Chrome and Firefox (Gemini and
+other AIs are planned). A saved summary can be continued in **any** AI: copy it from your vault page
+and paste it into the new chat. See
 [What is and is not verified](#what-is-and-is-not-verified) before you rely on it.
 
 ## Contents
@@ -325,6 +326,10 @@ here...", press **Bring it into this chat**. The chat box fills with the cleaned
 the files attach. **You press send.** If the vault refuses, that thread contains a secret, so it
 is not sent.
 
+**Bring it into this chat** works on ChatGPT and Claude. For any other AI, use **Copy for another
+AI** on your vault page (see [Moving a conversation to another AI](#moving-a-conversation-to-another-ai))
+and paste it yourself.
+
 > **🔒 What protects you here**
 > - Nothing is saved until you press **Save**, and you see and can correct everything first.
 > - If a secret (a password or key) is found, the vault refuses to save it.
@@ -371,8 +376,9 @@ open it.
 
 ## Moving a conversation to another AI
 
-1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT
-   or Claude).
+1. On a thread's page, under **Continue in another AI**, pick where you will paste it. This works
+   with any AI: if yours is not in the list, pick ChatGPT or Claude, they hide the same private
+   details.
 2. Press **Copy for another AI**.
 3. Paste it into the new chat.
 
