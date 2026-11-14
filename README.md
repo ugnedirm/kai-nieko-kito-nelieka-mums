@@ -638,20 +638,26 @@ Try a few models: passing on one does not prove the rest.
 
 ## Security model in short
 
-- The service listens on `127.0.0.1` only. API calls need a secret token (constant-time compare),
-  a correct `Host`, and an approved extension origin; the vault pages need a one-time sign-in link.
-- Pairing needs your click. Every change you make on a vault page also needs a same-origin request
-  and a custom header, so another site cannot make it for you.
-- Imported files, handovers, AI replies, page text and extension payloads are untrusted: validated
-  against the JSON Schemas, never pasted raw into a prompt.
-- Findings, errors, logs and the access log never contain matched secrets, message text, file
-  contents or tokens. Records contain no floating-point numbers (hash canonicalisation).
-- The vault, not a client, assigns hashes, versions, ids, signatures, provenance and file types.
-- Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/SPEC.md`.
+🔒 Everything runs on your computer, everything from outside is treated as untrusted, and nothing
+sensitive ever ends up in a log.
 
-Known limits: cookies are shared by all ports on `127.0.0.1`, so another local program could receive
-the session cookie (sessions last 2 hours); a hostile local program can ask to pair (you must refuse
-a request you did not just make); injection detection is a heuristic.
+| In plain words | Technical detail |
+|---|---|
+| **Only your computer can reach the vault** | The service listens on `127.0.0.1` only. API calls need a secret token (constant-time compare), a correct `Host`, and an approved extension origin; the vault pages need a one-time sign-in link. |
+| **Nothing connects or changes without you** | Pairing needs your click. Every change you make on a vault page also needs a same-origin request and a custom header, so another site cannot make it for you. |
+| **Outside text is never trusted** | Imported files, handovers, AI replies, page text and extension payloads are untrusted: validated against the JSON Schemas, never pasted raw into a prompt. |
+| **Logs never leak your data** | Findings, errors, logs and the access log never contain matched secrets, message text, file contents or tokens. Records contain no floating-point numbers (hash canonicalisation). |
+| **Programs cannot fake the record** | The vault, not a client, assigns hashes, versions, ids, signatures, provenance and file types. |
+
+Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/SPEC.md`.
+
+### Known limits
+
+- **Cookies** are shared by all ports on `127.0.0.1`, so another local program could receive the
+  session cookie. Sessions last 2 hours.
+- **A hostile local program can ask to pair.** What you can do: refuse a request you did not just
+  make.
+- **Injection detection is a heuristic** (see [Honest limits](#honest-limits)).
 
 ## What is and is not verified
 
