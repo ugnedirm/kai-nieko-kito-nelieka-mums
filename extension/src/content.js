@@ -17,14 +17,24 @@
 
   // Options come from the background worker: content scripts cannot read storage.local (it also
   // holds the vault token), see background.js setAccessLevel.
-  ext.runtime.sendMessage({ type: "get_content_settings" }).then((s) => {
-    if (!s) return;
-    if (Number.isInteger(s.checkpointEvery) && s.checkpointEvery > 0) settings.checkpointEvery = s.checkpointEvery;
-    if (["off", "remind", "fill"].includes(s.checkpointMode)) settings.checkpointMode = s.checkpointMode;
-    settings.fullMode = s.fullMode === true;
-    settings.captureFiles = s.captureFiles !== false;
-    if (["ask", "auto", "off"].includes(s.attachMode)) settings.attachMode = s.attachMode;
-  });
+  function loadSettings() {
+    return ext.runtime.sendMessage({ type: "get_content_settings" }).then((s) => {
+      if (!s) return;
+      if (Number.isInteger(s.checkpointEvery) && s.checkpointEvery > 0) settings.checkpointEvery = s.checkpointEvery;
+      if (["off", "remind", "fill"].includes(s.checkpointMode)) settings.checkpointMode = s.checkpointMode;
+      settings.fullMode = s.fullMode === true;
+      settings.captureFiles = s.captureFiles !== false;
+      if (["ask", "auto", "off"].includes(s.attachMode)) settings.attachMode = s.attachMode;
+    });
+  }
+  // Start counting from the replies already on the page, so opening an old chat (or changing the
+  // interval) does not trigger a reminder at once: the next one comes after N MORE replies.
+  let checkpointsReady = false; // chat pages fill in after load: wait for them before counting
+  const syncCheckpoints = () => {
+    lastBucket = Math.floor(adapter.assistantTurns(document) / settings.checkpointEvery);
+    checkpointsReady = true;
+  };
+  loadSettings().then(() => setTimeout(syncCheckpoints, 4000));
 
   // ---- pictures and files shown in the chat ----------------------------------------------------
   // The ONLY network use in a content script. It runs on the person's own, already-open chat and
@@ -253,7 +263,7 @@
         [{ label: "Save handover now", primary: true, run: startHandover }]);
       return;
     }
-    if (settings.checkpointMode === "off" || awaiting) return;
+    if (settings.checkpointMode === "off" || awaiting || !checkpointsReady) return;
     const bucket = TV.limits.checkpointDue(adapter.assistantTurns(document), settings.checkpointEvery, lastBucket);
     if (bucket === null) return;
     lastBucket = bucket;
@@ -274,7 +284,11 @@
     if (msg.type === "start_handover") respond(startHandover());
     else if (msg.type === "selftest") respond(adapter.selfTest(document));
     else if (msg.type === "fill_continue") respond(fillContinue(msg));
-    else return false;
+    else if (msg.type === "reload_settings") {
+      // The popup changed the checkpoint choice: apply it now, without reloading the chat.
+      loadSettings().then(() => { syncCheckpoints(); respond({ ok: true }); }, () => respond({ ok: false }));
+      return true;
+    } else return false;
     return false;
   });
 })();

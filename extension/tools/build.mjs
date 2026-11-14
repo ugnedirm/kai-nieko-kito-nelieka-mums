@@ -24,6 +24,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mkdirSync(out, { recursive: true });
     cpSync(join(ext, "src"), join(out, "src"), { recursive: true });
     cpSync(join(ext, "pages"), join(out, "pages"), { recursive: true });
+    cpSync(join(ext, "icons"), join(out, "icons"), { recursive: true });
     cpSync(join(ext, manifest), join(out, "manifest.json"));
     console.log("built", out);
   }

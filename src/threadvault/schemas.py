@@ -16,8 +16,10 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-# Editable-install path. Packaging the schemas as package data is a later task for Person A.
-SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schemas"
+# An installed package carries the schemas as `threadvault/_schemas` (see pyproject force-include);
+# a development checkout reads them from the repository's `schemas/` folder.
+_PACKAGED = Path(__file__).resolve().parent / "_schemas"
+SCHEMA_DIR = _PACKAGED if _PACKAGED.is_dir() else Path(__file__).resolve().parents[2] / "schemas"
 
 
 @lru_cache(maxsize=1)

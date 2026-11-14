@@ -57,8 +57,21 @@ def _vault(ctx: typer.Context) -> Vault:
     return open_vault(ctx.obj)
 
 
+def _version(value: bool) -> None:
+    if value:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            typer.echo("When nothing else is left (threadvault) " + version("threadvault"))
+        except PackageNotFoundError:
+            typer.echo("When nothing else is left (threadvault), development checkout")
+        raise typer.Exit()
+
+
 @app.callback()
-def main(ctx: typer.Context, vault: VaultOpt = None) -> None:
+def main(ctx: typer.Context, vault: VaultOpt = None,
+         version: Annotated[bool, typer.Option("--version", callback=_version, is_eager=True,
+                                               help="Show the version and exit")] = False) -> None:
     ctx.obj = vault
 
 

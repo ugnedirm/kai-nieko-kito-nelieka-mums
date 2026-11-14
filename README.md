@@ -38,6 +38,28 @@ verified" at the end before you rely on it.
 
 ## Install
 
+### Easy install (macOS and Linux)
+
+Needs Python 3.11 or newer. Installs into your home folder only, no administrator rights.
+
+```
+curl -fsSL https://raw.githubusercontent.com/ugnedirm/kai-nieko-kito-nelieka-mums/main/scripts/install.sh -o install.sh
+sh install.sh
+thread --version
+thread setup
+```
+
+(Read `install.sh` first if you like: it is short.) Then install the browser extension from the store,
+or from the zip on the release page (see "The browser extension"). To upgrade, run `sh install.sh`
+again. To remove the program: `sh install.sh --uninstall` (your saved threads are not touched).
+
+Any system: `pip install "threadvault[recommended] @ <URL of a release wheel or source zip>"`. Windows
+has not been tested; `thread setup` (start at login) is macOS and Linux only, so on Windows run
+`thread serve` yourself. Maintainers: see `docs/RELEASING.md` (releases, store listings and what is
+still open) and `docs/PRIVACY.md`.
+
+### From source (development)
+
 Needs Python 3.11 or newer, and Node.js (only to build the browser extension).
 
 ```
@@ -48,8 +70,9 @@ pip install -e ".[dev,ui]"
 cd extension && npm run build && cd ..
 ```
 
-Optional extras: `keychain` (sign records with a key in your OS keychain), `llm` (the second-opinion
-tool), `privacy` (extra name detection), `agent`. Example: `pip install -e ".[keychain,llm]"`.
+Optional extras: `recommended` (PDF cleaning, keychain signing, the Claude Desktop connector, token
+counts), `keychain`, `llm` (the second-opinion tool), `privacy` (extra name detection), `agent`.
+Example: `pip install -e ".[recommended,llm]"`.
 
 Every new terminal window needs `source .venv/bin/activate` first. When you paste commands into the
 macOS terminal, leave out lines that start with `#`.
@@ -108,6 +131,13 @@ vault service on `127.0.0.1`.
 
 Nothing is saved until you press Save. If a secret is found the vault refuses; if personal data is
 found you are asked to confirm.
+
+**Do not wait for your limit.** A summary needs one more message from you, so it cannot be written once
+a chat is blocked. Checkpoints prevent that: by default you are reminded every 10 replies to save a
+summary. In the extension icon, under **Checkpoints**, switch between "Remind me", "Type the summary
+request for me" (you still press send) and "Off", and choose every 5, 10, 20 or 30 replies. It applies
+at once, and counting starts from the replies already on the page, so opening an old chat does not
+trigger an instant reminder. You also get a warning when the site says you are near your limit.
 
 **Files you attach to the chat.** When you attach a picture or document to a message, a notice asks
 whether to save a copy too (change this in the extension's **Settings**: ask, automatic or off). The

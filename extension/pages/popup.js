@@ -104,6 +104,40 @@
       const r = await send("open_vault");
       if (!r || !r.ok) status.textContent = "Could not open your vault. Is it running?";
     } }));
+    if (connected) checkpointControl();
+  }
+
+  // Regular checkpoints, so a summary already exists if you hit your limit. One tap to change;
+  // the chat page picks it up at once. (The extension never presses send for you.)
+  async function checkpointControl() {
+    const stored = await ext.storage.local.get(["checkpointMode", "checkpointEvery"]);
+    const modeSel = el("select", { style: "width:100%;margin:4px 0" },
+      el("option", { value: "remind", textContent: "Remind me to save a summary" }),
+      el("option", { value: "fill", textContent: "Type the summary request for me" }),
+      el("option", { value: "off", textContent: "Off" }));
+    const everySel = el("select", { style: "width:100%;margin:4px 0" });
+    const every = Number.isInteger(stored.checkpointEvery) && stored.checkpointEvery > 0 ? stored.checkpointEvery : 10;
+    for (const n of Array.from(new Set([5, 10, 20, 30, every])).sort((a, b) => a - b)) {
+      everySel.append(el("option", { value: String(n), textContent: `every ${n} replies` }));
+    }
+    modeSel.value = ["remind", "fill", "off"].includes(stored.checkpointMode) ? stored.checkpointMode : "remind";
+    everySel.value = String(every);
+    const note = el("p", { className: "muted" });
+    const apply = async () => {
+      await ext.storage.local.set({ checkpointMode: modeSel.value, checkpointEvery: Number(everySel.value) });
+      everySel.disabled = modeSel.value === "off";
+      note.textContent = modeSel.value === "off" ? "Checkpoints are off: you will only get a warning near the limit."
+        : "Saved. In a chat, you will be reminded every " + everySel.value + " replies.";
+      try {
+        const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+        if (tab) await ext.tabs.sendMessage(tab.id, { type: "reload_settings" });
+      } catch (_) { /* not a chat page: the choice applies the next time one opens */ }
+    };
+    modeSel.onchange = apply;
+    everySel.onchange = apply;
+    everySel.disabled = modeSel.value === "off";
+    body.append(el("p", { className: "muted", textContent: "Checkpoints: save a summary regularly, so you still have one if you hit your limit." }),
+      modeSel, everySel, note);
   }
 
   async function render() {

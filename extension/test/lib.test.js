@@ -215,3 +215,15 @@ test("a file the person attaches may be larger than an automatic capture, but st
   const huge = new Uint8Array(F.LIMITS.MAX_ATTACH_BYTES + 10); huge.set(PNG);
   assert.equal(F.validateCaptured([{ name: "h.png", data_base64: F.toBase64(huge) }], opts).length, 0);
 });
+
+test("after the page settles, the next checkpoint comes after N MORE replies, not at once", () => {
+  const L = require("../src/lib/limits.js");
+  const every = 10;
+  const settled = 32; // an old chat opened with 32 replies already on it
+  const last = Math.floor(settled / every); // what the content script starts counting from
+  assert.equal(L.checkpointDue(settled, every, last), null);
+  assert.equal(L.checkpointDue(39, every, last), null);
+  assert.equal(L.checkpointDue(40, every, last), 4); // the reminder, after 8 more replies
+  assert.equal(L.checkpointDue(40, every, 4), null); // and only once
+  assert.equal(L.checkpointDue(25, 5, Math.floor(25 / 5)), null); // changing the interval: no instant reminder
+});

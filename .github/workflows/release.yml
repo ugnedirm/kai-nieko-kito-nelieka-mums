@@ -1,0 +1,49 @@
+name: release
+# Push a tag like v0.1.0 (it must match `version` in pyproject.toml) to publish a GitHub Release with:
+#   - the Python wheel and source archive,
+#   - the extension zips for the Chrome Web Store and Firefox Add-ons,
+#   - SHA256SUMS so downloads can be checked.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: The tag must match the version in pyproject.toml
+        run: |
+          v=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match version $v"; exit 1; }
+      - run: pip install -e ".[dev,mcp,agent]" build
+      - run: ruff check .
+      - run: mypy
+      - run: pytest -q
+      - run: cd extension && npm test && npm run build
+      - run: python tools/package_extension.py
+      - run: python -m build
+      - name: Smoke-test the built wheel in a clean environment
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          THREADVAULT_DIR=/tmp/clean-vault /tmp/clean/bin/thread init
+          THREADVAULT_DIR=/tmp/clean-vault /tmp/clean/bin/thread verify
+      - name: Collect files and checksums
+        run: |
+          mkdir release
+          cp dist/*.whl dist/*.tar.gz extension/dist/release/*.zip scripts/install.sh release/
+          cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes

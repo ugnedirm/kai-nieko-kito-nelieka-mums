@@ -11,7 +11,8 @@ Needs review by someone other than the author (C reviews B).
 
 - No `web_accessible_resources`, no `externally_connectable`: web pages cannot load or message the extension.
 - CSP: `script-src 'self'`, no inline script, no `eval`, no remote code. All code ships in the package.
-- Only `background.js` makes network requests, only to `http://127.0.0.1:<port>`, with the token, `credentials: omit`, `redirect: error`.
+- `background.js` makes the network requests to the vault: only to `http://127.0.0.1:<port>`, with the token, `credentials: omit`, `redirect: error`.
+- `content.js` has exactly ONE `fetch`, to read a picture or file that is already shown in the person's own chat: only this site's own `https` or `blob:` URLs (no credentials in the URL, no redirects, 15 s timeout, size caps, type decided by magic bytes). Its result goes only to the background worker, never to a website. It also reads files the person attaches (`File.arrayBuffer`, local, no network). `tests/test_extension.py` pins all of this.
 - Content scripts never hold the token and never use the network. They ask the background worker for the (non-secret) options; where the browser supports `storage.local.setAccessLevel` (Chrome), `storage.local` is closed to content scripts entirely. The worker accepts messages only from this extension (chat tabs on the allowed hosts, or its own pages).
 - No telemetry, no analytics.
 
