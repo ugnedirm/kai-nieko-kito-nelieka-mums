@@ -257,42 +257,70 @@ Next: [install the browser extension](#the-browser-extension).
 
 ## The browser extension
 
-Works on chatgpt.com and claude.ai (Chrome and Firefox). It never talks to anything except your own
-vault service on `127.0.0.1`.
+Works on chatgpt.com and claude.ai, in Chrome and Firefox. 🔒 It talks to nothing except your own
+vault service on your computer (`127.0.0.1`): no other server ever sees your chats.
 
-**Install and connect (once)**
+The extension needs the program running: `thread serve`, or `thread setup` for automatic start
+(see [Install](#install)).
 
+### Install and connect (once)
+
+**Option A: the ready-made zip (no building needed).** Download the Chrome or Firefox zip from the
+[Releases page](https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases) and unzip it.
+- Chrome: open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and choose
+  the unzipped folder.
+- Firefox: `about:debugging` > This Firefox > Load Temporary Add-on > choose `manifest.json` in the
+  unzipped folder. Firefox forgets temporary add-ons when it restarts, so load it again after a
+  restart.
+
+**Option B: build it yourself.**
 1. `cd extension && npm run build`
 2. Chrome: open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and choose
    `extension/dist/chrome`. After a rebuild, press the reload icon on its card.
    Firefox: `about:debugging` > This Firefox > Load Temporary Add-on > `extension/dist/firefox/manifest.json`.
-3. A welcome page opens with the steps. Press **Connect to my vault** (on that page or in the toolbar
-   popup), then press **Allow** on the page that opens. No token to copy, no extension id to look up.
 
-**Save a chat's summary**
+**Then connect:** a welcome page opens with the steps. Press **Connect to my vault** (on that page
+or in the toolbar popup), then press **Allow** on the page that opens. No token to copy, no
+extension id to look up.
+
+### Save a chat's summary
 
 1. Open a chat, click the threadvault icon (`t`), press **Save this chat's summary**.
 2. Press send in the chat. The AI writes a short structured summary.
 3. A review page opens. Read it, correct or delete anything wrong, press **Save**.
 
-Nothing is saved until you press Save. If a secret is found the vault refuses; if personal data is
-found you are asked to confirm.
+### Continue a saved thread in another AI
 
-**Do not wait for your limit.** A summary needs one more message from you, so it cannot be written once
-a chat is blocked. Checkpoints prevent that: by default you are reminded every 10 replies to save a
-summary. In the extension icon, under **Checkpoints**, switch between "Remind me", "Type the summary
-request for me" (you still press send) and "Off", and choose every 5, 10, 20 or 30 replies. It applies
-at once, and counting starts from the replies already on the page, so opening an old chat does not
-trigger an instant reminder. You also get a warning when the site says you are near your limit.
+In a new ChatGPT or Claude chat, click the icon, choose a thread under "Continue a saved thread
+here...", press **Bring it into this chat**. The chat box fills with the cleaned, wrapped text and
+the files attach. **You press send.**
 
-**Files you attach to the chat.** When you attach a picture or document to a message, a notice asks
-whether to save a copy too (change this in the extension's **Settings**: ask, automatic or off). The
-extension holds the real file you picked, so uploaded documents work. Hidden details are removed
-(see [Files](#files)).
+> **🔒 What protects you here**
+> - Nothing is saved until you press **Save**, and you see and can correct everything first.
+> - If a secret (a password or key) is found, the vault refuses to save it.
+> - If personal data is found, you are asked to confirm.
+> - What goes into a new chat is cleaned and wrapped, so hidden instructions are treated as
+>   information, not commands (see [Protection against hidden instructions](#protection-against-hidden-instructions-prompt-injection)).
+> - Nothing is sent by itself: **you** always press send.
 
-**Continue a saved thread in a new chat.** In a new ChatGPT or Claude chat, click the icon, choose a
-thread under "Continue a saved thread here...", press **Bring it into this chat**. The chat box fills
-with the cleaned, wrapped text and the files attach. **You press send.**
+### Do not wait for your limit (checkpoints)
+
+A summary needs one more message from you, so it cannot be written once a chat is blocked.
+Checkpoints prevent that: by default you are reminded every 10 replies to save a summary.
+
+In the extension icon, under **Checkpoints**, choose:
+- **Remind me**, **Type the summary request for me** (you still press send) or **Off**;
+- every **5, 10, 20 or 30** replies.
+
+It applies at once, and counting starts from the replies already on the page, so opening an old
+chat does not trigger an instant reminder. You also get a warning when the site says you are near
+your limit.
+
+### Files you attach to the chat
+
+When you attach a picture or document to a message, a notice asks whether to save a copy too
+(change this in the extension's **Settings**: ask, automatic or off). The extension holds the real
+file you picked, so uploaded documents work. 🔒 Hidden details are removed (see [Files](#files)).
 
 ## The vault page
 
