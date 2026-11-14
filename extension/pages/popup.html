@@ -16,6 +16,9 @@ color:var(--ink);background:var(--card);border:1px solid var(--line);border-radi
 button:hover{border-color:var(--accent);color:var(--accent-text)}
 button.big{color:#fff;background:var(--accent);border-color:var(--accent)}
 button.big:hover{background:var(--accent-hover);color:#fff}
+button:disabled,select:disabled{opacity:.45;cursor:default}
+button:disabled:hover{border-color:var(--line);color:var(--ink)}
+button.big:disabled:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--card);
 color:var(--ink)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -30,4 +33,5 @@ ol{margin:6px 0 6px 18px;padding:0}details{margin-top:10px}summary{cursor:pointe
 <div id="state" class="muted"></div><ul id="checks"></ul>
 <button id="test">Check this page</button></details>
 <p class="muted"><a href="#" id="help">How does this work?</a> &middot; <a href="#" id="options">Settings</a></p>
+<script src="../src/lib/constants.js"></script><script src="../src/lib/util.js"></script>
 <script src="popup.js"></script></body></html>

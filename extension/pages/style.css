@@ -15,9 +15,19 @@ h2{margin:32px 0 8px;font-size:16px;font-weight:600}
 a{color:var(--accent-text)}
 code{background:var(--accent-soft);color:var(--accent-text);padding:2px 7px;border-radius:4px;
 font:13px ui-monospace,Consolas,monospace}
-.item{display:flex;gap:8px;margin:6px 0}
-.item input{flex:1}
-.item .note{flex:.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:14px 0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card h2{margin:0}
+.rows{margin-top:6px}
+.item{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr) auto;gap:8px;margin:8px 0;align-items:start}
+.item textarea{resize:none;overflow:hidden;font:inherit;font-size:14px;line-height:1.45;width:100%;
+min-height:36px}
+.item .note{color:var(--muted)}
+.field{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:12px;margin:12px 0}
+.field span{color:var(--muted);font-size:14px}
+.field select,.field input{width:100%}
+.check{display:flex;gap:10px;align-items:flex-start;margin:10px 0;font-size:14px}
+.check input{margin-top:4px;flex:none}
 input,select,textarea{font:inherit;font-size:14px;padding:6px 9px;border:1px solid var(--line);
 border-radius:6px;background:var(--card);color:var(--ink)}
 input[type=checkbox]{accent-color:var(--accent);padding:0}
@@ -25,6 +35,9 @@ textarea{width:100%;font:13px/1.5 ui-monospace,Consolas,monospace}
 button{padding:8px 16px;cursor:pointer;font:inherit;font-size:14px;font-weight:500;color:#fff;
 background:var(--accent);border:1px solid var(--accent);border-radius:7px;transition:background .15s}
 button:hover{background:var(--accent-hover)}
+button.secondary{background:var(--card);color:var(--ink);border-color:var(--line)}
+button.secondary:hover{border-color:var(--accent);color:var(--accent-text);background:var(--card)}
+button.small{padding:5px 12px;font-size:13px}
 button:disabled{opacity:.5;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 details{margin-top:28px}summary{cursor:pointer;color:var(--muted)}

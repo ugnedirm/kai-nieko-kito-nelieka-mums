@@ -26,19 +26,34 @@
     "as reviewed by you. Do not save anything you have not read."));
   for (const w of p.warnings) root.append(say("warn", w));
 
+  // Layout helpers: every part of the page is a card with a heading, and long text is shown in full.
+  function card(titleText, ...kids) {
+    const head = el("div", { className: "card-head" }, el("h2", { textContent: titleText }));
+    const c = el("section", { className: "card" }, head, ...kids);
+    c.head = head;
+    return c;
+  }
+  const field = (label, control) => el("label", { className: "field" }, el("span", { textContent: label }), control);
+  const check = (box, text) => el("label", { className: "check" }, box, el("span", { textContent: text }));
+  const grow = (t) => { t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; };
+
   const rows = {}; // section -> container
   function addRow(section, text, note) {
     const noteKey = section === "uncertain" ? "reason" : "source note";
-    const row = el("div", { className: "item" },
-      el("input", { value: text || "", maxLength: C.MAX_TEXT, placeholder: "text" }),
-      el("input", { className: "note", value: note || "", maxLength: C.MAX_NOTE, placeholder: noteKey }),
-      el("button", { type: "button", textContent: "Remove", onclick: () => row.remove() }));
+    const t = el("textarea", { rows: 1, value: text || "", maxLength: C.MAX_TEXT, placeholder: "text" });
+    const n = el("textarea", { rows: 1, className: "note", value: note || "", maxLength: C.MAX_NOTE, placeholder: noteKey });
+    const row = el("div", { className: "item" }, t, n,
+      el("button", { type: "button", className: "secondary small", textContent: "Remove", onclick: () => row.remove() }));
+    for (const x of [t, n]) x.addEventListener("input", () => grow(x));
     rows[section].append(row);
+    grow(t);
+    grow(n);
   }
   for (const s of C.SECTIONS) {
-    rows[s] = el("div");
-    root.append(el("h2", { textContent: NAMES[s] }), rows[s],
-      el("button", { type: "button", textContent: "Add", onclick: () => addRow(s) }));
+    rows[s] = el("div", { className: "rows" });
+    const c = card(NAMES[s], rows[s]);
+    c.head.append(el("button", { type: "button", className: "secondary small", textContent: "+ Add", onclick: () => addRow(s) }));
+    root.append(c);
     for (const it of p.content[s]) addRow(s, it.text, it.source_note || it.reason);
   }
 
@@ -47,8 +62,7 @@
   const threadSel = el("select", {}, el("option", { value: "", textContent: "New thread" }));
   const saveMessages = el("input", { type: "checkbox" });
   const saveArtifacts = el("input", { type: "checkbox" });
-  root.append(el("h2", { textContent: "Where to save" }),
-    el("label", {}, "Thread: ", threadSel), threadNote, el("label", {}, "New thread title: ", title));
+  const where = card("Where to save", field("Thread", threadSel), threadNote, field("New thread title", title));
   ext.runtime.sendMessage({ type: "list_threads" }).then((list) => {
     for (const t of Array.isArray(list) ? list : []) threadSel.append(el("option", { value: t.thread_id, textContent: t.title }));
     // Files attached to this chat already went to one thread: save the summary there too.
@@ -59,27 +73,29 @@
     }
   });
   if (p.messages && p.messages.length) {
-    root.append(el("div", {}, el("label", {}, saveMessages, ` Also save the whole conversation (${p.messages.length} messages, stored as unverified)`)));
+    where.append(check(saveMessages, `Also save the whole conversation (${p.messages.length} messages, stored as unverified)`));
   }
   if (p.artifacts && p.artifacts.length) {
-    root.append(el("div", {}, el("label", {}, saveArtifacts, ` Also save ${p.artifacts.length} code/text block(s) as files`)));
+    where.append(check(saveArtifacts, `Also save ${p.artifacts.length} code/text block(s) as files`));
   }
+  root.append(where);
 
   const fileBoxes = [];
-  root.append(el("h2", { textContent: "Pictures and files from the chat" }));
+  const filesCard = card("Pictures and files from the chat");
   if (p.files && p.files.length) {
-    root.append(say("warn", "Tick the ones to save. Hidden data such as the location inside a photo is " +
+    filesCard.append(say("warn", "Tick the ones to save. Hidden data such as the location inside a photo is " +
       "removed by the vault before storing."));
     p.files.forEach((f) => {
       const box = el("input", { type: "checkbox", checked: true });
       fileBoxes.push(box);
-      root.append(el("div", {}, el("label", {}, box, ` ${f.name} (${f.size < 1024 ? f.size + " bytes" : Math.round(f.size / 1024) + " KB"})`)));
+      filesCard.append(check(box, `${f.name} (${f.size < 1024 ? f.size + " bytes" : Math.round(f.size / 1024) + " KB"})`));
     });
   } else {
-    root.append(el("p", { className: "note-small", textContent: "None found." }));
+    filesCard.append(el("p", { className: "note-small", textContent: "None found." }));
   }
-  root.append(el("p", { className: "note-small",
+  filesCard.append(el("p", { className: "note-small",
     textContent: "Some files, such as documents you uploaded, are not available to the extension and cannot be captured automatically." }));
+  root.append(filesCard);
 
   const status = el("div");
   const save = el("button", { type: "button", textContent: "Save" });
@@ -89,7 +105,7 @@
     const content = { files: [] };
     for (const s of C.SECTIONS) {
       content[s] = Array.from(rows[s].children).map((r) => {
-        const [t, n] = r.querySelectorAll("input");
+        const [t, n] = r.querySelectorAll("textarea");
         const o = { text: t.value };
         if (n.value) o[s === "uncertain" ? "reason" : "source_note"] = n.value;
         return o;

@@ -111,7 +111,7 @@
   async function saveAttachment(file, ack) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!TV.files.sniff(bytes, file.name)) {
-      notify("threadvault keeps pictures, PDFs, Word, PowerPoint, Excel and text files. \"" + file.name +
+      notify("This extension keeps pictures, PDFs, Word, PowerPoint, Excel and text files. \"" + file.name +
         "\" is another type, so no copy was saved. (The AI still received it.)", []);
       return;
     }
@@ -119,13 +119,13 @@
       adapterVersion: adapter.version, title: adapter.pageTitle(document), mode: settings.fullMode ? "full" : "handover",
       name: file.name, data_base64: TV.files.toBase64(bytes), ack: !!ack }).catch(() => null);
     if (!res) { notify("Could not reach the extension background.", []); return; }
-    if (res.status === "accepted") notify("Saved a copy of \"" + file.name + "\" to threadvault.", []);
+    if (res.status === "accepted") notify("Saved a copy of \"" + file.name + "\" to your vault.", []);
     else if (res.status === "needs_confirmation") {
       const plain = { file_metadata: "hidden file details (such as author or location)",
         hidden_content: "hidden content", api_key: "a key", secret: "a secret", email: "an email address",
         phone: "a phone number", person: "a name", prompt_injection: "text that looks like instructions to an AI" };
       const what = Array.from(new Set((res.findings || []).map((f) => plain[f.kind] || f.kind))).join(", ");
-      notify("\"" + file.name + "\" may still contain " + what + " that threadvault could not remove. " +
+      notify("\"" + file.name + "\" may still contain " + what + " that could not be removed. " +
         "Save a copy anyway? It stays on your computer and is never sent to another AI.",
         [{ label: "Save anyway", primary: true, run: () => saveAttachment(file, true) }]);
     } else {
@@ -141,11 +141,11 @@
       if (offered.has(key)) continue;
       offered.add(key);
       if (file.size > TV.files.LIMITS.MAX_ATTACH_BYTES) {
-        notify("\"" + file.name + "\" is too large for threadvault (25 MB). Attach it by hand on your vault page.", []);
+        notify("\"" + file.name + "\" is too large for your vault (25 MB). Attach it by hand on your vault page.", []);
       } else if (settings.attachMode === "auto") {
         saveAttachment(file, false).catch(() => {});
       } else {
-        notify("You attached \"" + file.name + "\" to this chat. Save a copy to threadvault too?",
+        notify("You attached \"" + file.name + "\" to this chat. Save a copy to your vault too?",
           [{ label: "Save a copy", primary: true, run: () => saveAttachment(file, false).catch(() => {}) }]);
       }
     }

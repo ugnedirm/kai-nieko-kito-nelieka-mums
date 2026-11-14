@@ -907,7 +907,9 @@ def test_compare_shows_and_diffs_the_summaries_of_summary_only_threads(env: Env)
     b = str(body["thread_id"])
     cookie = sign_in(env)
     _, text, _ = get_page(env, f"/compare?a={a}|main0001&b={b}|main0001", cookie)
-    assert "What differs between the summaries" in text and "Summary, left" in text
+    assert "What differs between the summaries" in text and "Show both summaries in full" in text
+    assert "Summary only: no messages were saved" in text  # no noisy technical warning per column
+    assert "No message history stored" not in text
     assert "Budget is fixed" in text and "Budget is 900 EUR" in text
     assert "class='del'" in text and "class='add'" in text
     _, same, _ = get_page(env, f"/compare?a={a}|main0001&b={a}|main0001", cookie)

@@ -26,6 +26,13 @@
       for (const c of r.checks) list.append(el("li", { textContent: `${c.ok ? "ok" : c.required ? "FAIL" : "missing"}: ${c.name}` }));
       return r.ok;
     } catch (_) {
+      // Either this is not a chat page, or it is one that was opened before the extension was
+      // installed or updated (such a tab has no extension script until it is reloaded).
+      const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+      if (tab && tab.url && globalThis.TV.util.hostAllowed(tab.url)) {
+        state.textContent = "This chat was opened before the extension was updated: reload the page.";
+        return "reload";
+      }
       state.textContent = "Open a ChatGPT or Claude chat to check it.";
       return null; // not on a chat page
     }
@@ -45,6 +52,60 @@
     status.textContent = "Not connected. Press Connect to try again.";
   }
 
+  // The same buttons are always shown, so it is clear what the extension can do. Ones that need a
+  // connection or a chat page are greyed out, with a one-line hint saying what to do.
+  function controls(connected, onChat) {
+    const usable = connected && onChat === true;
+    const hint = !connected ? "Connect first to use these buttons."
+      : onChat === "reload" ? "This chat was opened before the extension was updated. Reload it once, then click the icon again."
+      : onChat === null ? "Open a ChatGPT or Claude chat to use the first two buttons."
+        : onChat === false ? "This page's layout is not recognised, so saving is turned off (the site may have changed)." : "";
+    if (hint) body.append(el("p", { className: connected && (onChat === false || onChat === "reload") ? "bad" : "muted", textContent: hint }));
+    if (connected && onChat === "reload") {
+      body.append(el("button", { className: "big", textContent: "Reload this page", onclick: async () => {
+        const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+        if (tab) await ext.tabs.reload(tab.id);
+        window.close();
+      } }));
+    }
+
+    const msg = el("p", { className: "muted" });
+    body.append(el("button", { className: "big", textContent: "Save this chat's summary", disabled: !usable, onclick: async () => {
+      try {
+        const res = await tabMessage("start_handover");
+        msg.textContent = res.ok ? "Done: a request was typed into the chat box." : res.error;
+      } catch (_) { msg.textContent = "Open a ChatGPT or Claude chat first."; }
+    } }), el("ol", {}, el("li", { textContent: "Click the button above." }),
+      el("li", { textContent: "Press send in the chat (the AI writes a short summary)." }),
+      el("li", { textContent: "A review page opens: check it, then press Save." })), msg);
+
+    const pick = el("select", { disabled: !usable, style: "width:100%;margin:4px 0" },
+      el("option", { value: "", textContent: "Continue a saved thread here..." }));
+    const out = el("p", { className: "muted" });
+    if (connected) {
+      send("list_threads").then((list) => {
+        for (const t of Array.isArray(list) ? list : []) pick.append(el("option", { value: t.thread_id, textContent: t.title }));
+      });
+    }
+    body.append(pick, el("button", { textContent: "Bring it into this chat", disabled: !usable, onclick: async () => {
+      if (!pick.value) { out.textContent = "Choose a thread first."; return; }
+      out.textContent = "Preparing... private details are hidden first.";
+      const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+      const r = await ext.runtime.sendMessage({ type: "continue_start", threadId: pick.value, tabId: tab && tab.id });
+      if (!r || !r.ok) { out.textContent = (r && r.error) || "Could not do that."; return; }
+      const hid = Object.entries(r.hidden || {}).map(([k, n]) => `${n} ${k}`).join(", ");
+      out.textContent = "Done. Check the chat box, then press send." +
+        (r.attached ? ` ${r.attached} file(s) attached.` : "") + (r.note ? " " + r.note : "") +
+        (hid ? ` Hidden before sharing: ${hid}.` : "") +
+        ((r.skipped || []).length ? " Left out: " + r.skipped.join("; ") + "." : "");
+    } }), out);
+
+    body.append(el("button", { textContent: "Open my saved threads", disabled: !connected, onclick: async () => {
+      const r = await send("open_vault");
+      if (!r || !r.ok) status.textContent = "Could not open your vault. Is it running?";
+    } }));
+  }
+
   async function render() {
     body.replaceChildren();
     await send("pair_check"); // finishes a connection the person approved while this popup was closed
@@ -55,6 +116,7 @@
       status.textContent = "Your vault is not running";
       body.append(el("p", { textContent: "The vault is a small program on your computer that keeps your saved chats. It isn't running yet." }),
         el("button", { className: "big", textContent: "Show me how to start it", onclick: () => open("pages/welcome.html") }));
+      controls(false, onChat);
       return;
     }
     if (!v.connected) {
@@ -62,48 +124,12 @@
       status.textContent = "Not connected yet";
       body.append(el("p", { textContent: "Connect this browser to your vault once. You will be asked to click Allow on a page that opens." }),
         el("button", { className: "big", textContent: "Connect to my vault", onclick: connect }));
+      controls(false, onChat);
       return;
     }
     status.className = "ok";
     status.textContent = "Connected to your vault";
-    if (onChat === null) {
-      body.append(el("p", { textContent: "Open a ChatGPT or Claude chat, then click this icon again to save it." }));
-    } else if (onChat === false) {
-      body.append(el("p", { className: "bad", textContent: "This page's layout is not recognised, so saving is turned off (the site may have changed)." }));
-    } else {
-      const msg = el("p", { className: "muted" });
-      body.append(el("button", { className: "big", textContent: "Save this chat's summary", onclick: async () => {
-        try {
-          const res = await tabMessage("start_handover");
-          msg.textContent = res.ok ? "Done: a request was typed into the chat box." : res.error;
-        } catch (_) { msg.textContent = "Open a ChatGPT or Claude chat first."; }
-      } }), el("ol", {}, el("li", { textContent: "Click the button above." }),
-        el("li", { textContent: "Press send in the chat (the AI writes a short summary)." }),
-        el("li", { textContent: "A review page opens: check it, then press Save." })), msg);
-    }
-    if (onChat === true) {
-      const pick = el("select", { style: "width:100%;margin:4px 0" }, el("option", { value: "", textContent: "Continue a saved thread here..." }));
-      const out = el("p", { className: "muted" });
-      send("list_threads").then((list) => {
-        for (const t of Array.isArray(list) ? list : []) pick.append(el("option", { value: t.thread_id, textContent: t.title }));
-      });
-      body.append(pick, el("button", { textContent: "Bring it into this chat", onclick: async () => {
-        if (!pick.value) { out.textContent = "Choose a thread first."; return; }
-        out.textContent = "Preparing... private details are hidden first.";
-        const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
-        const r = await ext.runtime.sendMessage({ type: "continue_start", threadId: pick.value, tabId: tab && tab.id });
-        if (!r || !r.ok) { out.textContent = (r && r.error) || "Could not do that."; return; }
-        const hid = Object.entries(r.hidden || {}).map(([k, n]) => `${n} ${k}`).join(", ");
-        out.textContent = "Done. Check the chat box, then press send." +
-          (r.attached ? ` ${r.attached} file(s) attached.` : "") + (r.note ? " " + r.note : "") +
-          (hid ? ` Hidden before sharing: ${hid}.` : "") +
-          ((r.skipped || []).length ? " Left out: " + r.skipped.join("; ") + "." : "");
-      } }), out);
-    }
-    body.append(el("button", { textContent: "Open my saved threads", onclick: async () => {
-      const r = await send("open_vault");
-      if (!r || !r.ok) status.textContent = "Could not open your vault. Is it running?";
-    } }));
+    controls(true, onChat);
   }
 
   $("test").onclick = selftest;

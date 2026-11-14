@@ -31,7 +31,7 @@ from threadvault.ui.compare_data import (
 CSS = """
 :root{color-scheme:light dark;--accent:#6A31A6;--accent-hover:#58288b;--accent-text:#6A31A6;
 --accent-soft:#f3edf9;--code:#4b2178;--ink:#1d1a22;--muted:#6f6a78;--line:#e7e4ec;--bg:#fbfafc;
---card:#fff;--bad:#b3261e;--bad-soft:#fcefee;--warn-soft:#fbf6ea;--warn-line:var(--warn-line)}
+--card:#fff;--bad:#b3261e;--bad-soft:#fcefee;--warn-soft:#fbf6ea;--warn-line:#c99a2e}
 @media (prefers-color-scheme:dark){:root{--accent-hover:#7c40bd;--accent-text:#c3a2e8;
 --accent-soft:#2a2135;--code:#d9c4f2;--ink:#ebe8f0;--muted:#9a94a5;--line:#2c2933;--bg:#141218;
 --card:#1b1920;--bad:#f2928b;--bad-soft:#3a1f1e;--warn-soft:#2e2717;--warn-line:#b8923f}}
@@ -74,11 +74,24 @@ border-radius:6px;background:var(--card);color:var(--ink)}
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);
 padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:500}
 tr.bad td{background:var(--bad-soft)}
-.diff{font:13px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-wrap:break-word}
+.diff{font:13px/1.6 ui-monospace,Consolas,monospace;margin-top:12px}
+.diff>div{display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px;padding:2px 10px;
+border-radius:4px}
+.diff .t{white-space:pre-wrap;word-wrap:break-word}.diff .t:empty::after{content:"\00a0"}
+.diff .m{color:var(--muted);user-select:none;text-align:center}
 .diff .add{background:var(--accent-soft)}.diff .del{background:var(--bad-soft)}
 .diff .same{color:var(--muted)}
-.addmark{background:var(--accent-soft);padding:0 4px}.delmark{background:var(--bad-soft);padding:0 4px}
-.cols{display:flex;gap:16px;align-items:flex-start}.col{flex:1;min-width:0}select{max-width:100%}
+.addmark{background:var(--accent-soft);padding:1px 6px;border-radius:4px}
+.delmark{background:var(--bad-soft);padding:1px 6px;border-radius:4px}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;align-items:end}
+.field-col{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.field-col select{width:100%;font-size:14px;color:var(--ink);padding:8px 10px}
+.pick-go{grid-column:1 / -1}
+.section-title{margin:32px 0 4px;font-size:16px;font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}.col{min-width:0}
+.col h2{font-size:18px;margin:8px 0 2px;line-height:1.3}.col>p{margin:4px 0}
+@media (max-width:700px){.cols,.pick{grid-template-columns:1fr}}
+select{max-width:100%}
 details{margin:10px 0}summary{cursor:pointer}
 code{background:var(--accent-soft);color:var(--code);padding:1px 6px;border-radius:4px;font-size:.9em}
 """
@@ -458,7 +471,8 @@ def _compare_column(view: ThreadView, diverge: int | None) -> str:
     status = ("<span class='ok'>&#10003; not changed</span>" if view.verified
               else "<span class='bad'>&#9888; changed after saving</span>")
     warns = "".join(f"<p class='warn'>{esc(w)}</p>" for w in view.warnings
-                    if not w.startswith(("No trusted keys", "Signatures were checked")))
+                    if not w.startswith(("No trusted keys", "Signatures were checked",
+                                         "No message history stored")))
     rows = []
     for i, r in enumerate(view.rows):
         cats = injection.categories(r.text)
@@ -469,7 +483,7 @@ def _compare_column(view: ThreadView, diverge: int | None) -> str:
                     f"&middot; {esc(r.badge)}{first}{flag}</div><pre>{esc(r.text)}</pre></div>")
     return (f"<div class='col'><h2>{esc(view.title) or 'Untitled'}</h2>"
             f"<p class='muted'>{esc(view.thread_id)} / {esc(view.branch_id)}</p><p>{status}</p>"
-            f"{warns}{''.join(rows) or '<p class=muted>No messages stored (handover only).</p>'}</div>")
+            f"{warns}{''.join(rows) or '<p class=muted>Summary only: no messages were saved for this thread.</p>'}</div>")
 
 
 def compare(vault: Vault, left: str | None, right: str | None) -> str:
@@ -493,40 +507,44 @@ def compare(vault: Vault, left: str | None, right: str | None) -> str:
         views.append(build_view(vault, tid, bid))
     diverge = first_divergence(views[0], views[1])
     summaries = [latest_handover(vault, *choice.split("|", 1)) for choice in (a, b)]
-    form = (f"<form method='get' action='/compare' class='card'>Left: {select('a', a)} &nbsp; "
-            f"Right: {select('b', b)} &nbsp; <button>Compare</button></form>")
-    note = ("<p class='muted'>Compare two threads or branches: the same question asked to two AIs, "
-            "or a thread and its fork (<code>thread fork</code>). Summaries are compared line by "
-            "line; messages side by side. Two unrelated chats will simply differ everywhere.</p>")
+    form = (f"<form method='get' action='/compare' class='card pick'>"
+            f"<label class='field-col'><span>Left</span>{select('a', a)}</label>"
+            f"<label class='field-col'><span>Right</span>{select('b', b)}</label>"
+            "<div class='pick-go'><button>Compare</button></div></form>")
+    note = ("<p class='muted'>Compare two threads or branches: the same question asked to two AIs, or a "
+            "thread and its fork (<code>thread fork</code>). Two unrelated chats will simply differ "
+            "everywhere.</p>")
+    messages = ("<h2 class='section-title'>Messages</h2><div class='cols'>"
+                + _compare_column(views[0], diverge) + _compare_column(views[1], diverge) + "</div>")
     return page("Compare", "<h1>Compare</h1>" + note + form + _summary_compare(summaries[0], summaries[1])
-                + "<div class='cols'>" + _compare_column(views[0], diverge)
-                + _compare_column(views[1], diverge) + "</div>")
+                + messages)
 
 
 def _summary_compare(left: tuple[int, str] | None, right: tuple[int, str] | None) -> str:
-    """The latest handover of each side, and what differs between them, line by line."""
+    """What differs between the latest summary of each side (line by line), then both in full."""
     if left is None and right is None:
         return "<div class='card'><p class='muted'>Neither side has a summary (handover) yet.</p></div>"
     ltext = left[1] if left else ""
     rtext = right[1] if right else ""
-    head = (f"<div class='cols'><div class='col'><h3>Summary, left"
-            f"{f' (v{left[0]})' if left else ''}</h3><pre>{esc(ltext) or '(none)'}</pre></div>"
-            f"<div class='col'><h3>Summary, right{f' (v{right[0]})' if right else ''}</h3>"
-            f"<pre>{esc(rtext) or '(none)'}</pre></div></div>")
+    full = (f"<details class='card'><summary>Show both summaries in full</summary><div class='cols'>"
+            f"<div class='col'><h3>Left{f' (v{left[0]})' if left else ''}</h3>"
+            f"<pre>{esc(ltext) or '(none)'}</pre></div>"
+            f"<div class='col'><h3>Right{f' (v{right[0]})' if right else ''}</h3>"
+            f"<pre>{esc(rtext) or '(none)'}</pre></div></div></details>")
     if ltext == rtext:
         return ("<div class='card'><h2>Summaries</h2><p class='ok'>&#10003; The two summaries are "
-                "identical.</p></div>")
+                f"identical.</p></div>{full}")
     lines = diff_text(ltext, rtext)
     shown = lines[:400]
     css = {"+": "add", "-": "del", " ": "same"}
-    mark = {"+": "+ ", "-": "- ", " ": "  "}
-    rows = "".join(f"<div class='{css[m]}'>{esc(mark[m] + text)}</div>" for m, text in shown)
+    rows = "".join(f"<div class='{css[m]}'><span class='m'>{esc(m if m != ' ' else '')}</span>"
+                   f"<span class='t'>{esc(text)}</span></div>" for m, text in shown)
     more = f"<p class='muted'>... {len(lines) - 400} more lines</p>" if len(lines) > 400 else ""
     changed = sum(1 for m, _ in lines if m != " ")
     return (f"<div class='card'><h2>What differs between the summaries</h2><p class='muted'>"
             f"<span class='delmark'>- only on the left</span> &nbsp; <span class='addmark'>+ only on "
-            f"the right</span> &nbsp; ({changed} changed line(s))</p><div class='diff'>{rows}</div>"
-            f"{more}</div>" + head)
+            f"the right</span> &nbsp; {changed} changed line(s)</p><div class='diff'>{rows}</div>"
+            f"{more}</div>{full}")
 
 
 def pairing(pending: Sequence[tuple[str, str, int]], csrf: str) -> str:
