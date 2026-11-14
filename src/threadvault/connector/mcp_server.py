@@ -32,6 +32,7 @@ from threadvault.privacy.outbound import (
     prepare_file,
     prepare_handover,
     prepare_text,
+    wrap_messages,
 )
 from threadvault.privacy.redact import PseudonymMap
 from threadvault.scanners.basic import scan_record, scan_text
@@ -141,8 +142,7 @@ class ConnectorTools:
             outs.append(prepare_text(self._policy, self._dest, text, self._map, "messages"))
         for i, out in enumerate(outs):
             self._sendable("load", thread_id, out)
-            body = out.text if i == 0 and handovers else (
-                "<historical_messages>\n" + out.text + "\n</historical_messages>")
+            body = out.text if i == 0 and handovers else wrap_messages(out.text)
             parts.append(body)
             for k, n in out.counts().items():
                 hidden[k] = hidden.get(k, 0) + n

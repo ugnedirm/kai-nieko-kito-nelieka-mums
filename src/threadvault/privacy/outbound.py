@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from threadvault.core.render import historical_context
@@ -81,6 +82,15 @@ def prepare_file(policy: Record | None, destination_id: str, data: bytes,
         return Outbound(destination_id, "", [], True, "binary file: content not sent")
     r = redact_text(text, profile, mapping, "file")
     return _finish(destination_id, profile, r.text, r.findings, "file")
+
+
+_MESSAGES_TAG = re.compile(r"<(\s*/?\s*)historical_messages", re.IGNORECASE)
+
+
+def wrap_messages(text: str) -> str:
+    """Wrap message lines as history. Content can never open or close the wrapper tag."""
+    safe = _MESSAGES_TAG.sub(lambda m: f"&lt;{m.group(1)}historical_messages", text)
+    return f"<historical_messages>\n{safe}\n</historical_messages>"
 
 
 def preview(out: Outbound) -> Record:
