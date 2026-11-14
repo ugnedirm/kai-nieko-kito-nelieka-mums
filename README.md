@@ -64,6 +64,14 @@ It takes about five minutes and has three parts:
 **You need Python 3.11 or newer.** Check with `python3 --version` (Windows: `py --version`). If
 it is missing or older, get it from [python.org/downloads](https://www.python.org/downloads/).
 
+> **New to the terminal?**
+> - Open it: Windows: Start menu > type `PowerShell` > Enter (no "Run as administrator" needed).
+>   macOS: Spotlight > type `Terminal` > Enter.
+> - Run the commands one at a time: paste one (right-click or Ctrl+V / Cmd+V), press Enter, wait.
+> - If a long command breaks into two lines when you paste it, it fails ("is not recognized...").
+>   Paste it again in one piece.
+> - Replace text in `<angle brackets>` with your own value, without the brackets.
+
 ### macOS and Linux (easy install)
 
 Installs into your home folder only, no administrator rights. Open a terminal and run these one
@@ -90,8 +98,9 @@ at a time:
 
 ### Windows
 
-Windows is less tested: installing, `thread setup` and `thread serve` were checked on Windows 11,
-the full browser flow was not. Open **PowerShell** and run these one at a time:
+Windows is less tested: installing, `thread setup`, `thread serve` and the browser flow (connect,
+save with review, continue in a new chat) were checked on Windows 11 in Chrome. Open
+**PowerShell** and run these one at a time:
 
 1. Make a folder for the program:
    ```
@@ -103,17 +112,23 @@ the full browser flow was not. Open **PowerShell** and run these one at a time:
    ```
    .\python.exe -m pip install "threadvault[recommended] @ https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases/download/v0.1.0/threadvault-0.1.0-py3-none-any.whl"
    ```
+   It ends with `Successfully installed ...`. If it says `HTTP error 404`, wait a moment and run it
+   again (GitHub downloads sometimes fail briefly). A notice about a new pip version can be ignored.
 3. Create your vault:
    ```
    .\thread.exe setup
    ```
+   It prints `vault ready at ...`. "Automatic start is not available here" is normal on Windows. It
+   also mentions Gemini: Gemini is not supported yet, so ignore that.
 4. Start the service, and leave this window open while you save from the browser:
    ```
    .\thread.exe serve
    ```
 
 Automatic start at login (`thread setup`) is macOS and Linux only, so on Windows run
-`thread serve` yourself each time.
+`thread serve` yourself each time. In a new PowerShell window, first go back to the program folder
+with `cd "$env:USERPROFILE\threadvault\Scripts"`. `serve` keeps its window busy until you press
+Ctrl+C, so open a second window for any other command.
 
 ### Any other system
 
@@ -131,6 +146,10 @@ Install it from the store, or from the zip on the Releases page: see
 |---|---|---|
 | Upgrade | run `sh install.sh` again | run step 2 again with the newer wheel link |
 | Remove the program | `sh install.sh --uninstall` | delete the folder `%USERPROFILE%\threadvault` |
+
+On Windows, if deleting says the folder is "being used by another process", stop `thread serve`
+(Ctrl+C), close the other PowerShell and File Explorer windows that are in that folder, and try
+again (or restart the computer).
 
 Removing the program never touches your saved threads.
 
@@ -273,7 +292,8 @@ The extension needs the program running: `thread serve`, or `thread setup` for a
 **Option A: the ready-made zip (no building needed).** Download the Chrome or Firefox zip from the
 [Releases page](https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases) and unzip it.
 - Chrome: open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and choose
-  the unzipped folder.
+  the unzipped folder (the one that contains `manifest.json`). Keep that folder: Chrome loads the
+  extension from it.
 - Firefox: `about:debugging` > This Firefox > Load Temporary Add-on > choose `manifest.json` in the
   unzipped folder. Firefox forgets temporary add-ons when it restarts, so load it again after a
   restart.
@@ -288,17 +308,26 @@ The extension needs the program running: `thread serve`, or `thread setup` for a
 or in the toolbar popup), then press **Allow** on the page that opens. No token to copy, no
 extension id to look up.
 
+Tip: to see the `t` icon in Chrome's toolbar, click the puzzle piece 🧩 and pin threadvault.
+
 ### Save a chat's summary
 
-1. Open a chat, click the threadvault icon (`t`), press **Save this chat's summary**.
-2. Press send in the chat. The AI writes a short structured summary.
-3. A review page opens. Read it, correct or delete anything wrong, press **Save**.
+1. Open a chat, click the threadvault icon (`t`), press **Save this chat's summary**. If the chat
+   was already open before you installed the extension, reload the page (F5) first.
+2. Press send in the chat. The AI writes a short structured summary. Wait until it has finished.
+3. A review page opens **in a new tab**. Read it, correct or delete anything wrong, press **Save**.
+
+If saving is refused because of a secret, the message says what and where, for example
+`api_key at $.content.open_questions[0].text` means "a key, in Open questions, item 1". Remove it
+there and press **Save** again. AIs often leave keys out of a summary on their own; then there is
+nothing to block.
 
 ### Continue a saved thread in another AI
 
 In a new ChatGPT or Claude chat, click the icon, choose a thread under "Continue a saved thread
 here...", press **Bring it into this chat**. The chat box fills with the cleaned, wrapped text and
-the files attach. **You press send.**
+the files attach. **You press send.** If the vault refuses, that thread contains a secret, so it
+is not sent.
 
 > **🔒 What protects you here**
 > - Nothing is saved until you press **Save**, and you see and can correct everything first.
