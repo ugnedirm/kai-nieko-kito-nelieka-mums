@@ -30,7 +30,8 @@ and it only gets a cleaned copy.
 - ✅ **Trust**: every record is hash-chained, so an edited message is noticed; records can be signed.
 - ↔️ **Move**: take a conversation and its files from one AI to another in a few clicks.
 
-**Status:** working end to end for ChatGPT and Claude in Chrome and Firefox. See
+**Status:** working end to end for ChatGPT and Claude in Chrome and Firefox. Gemini and other AIs
+are planned. See
 [What is and is not verified](#what-is-and-is-not-verified) before you rely on it.
 
 ## Contents
@@ -63,6 +64,14 @@ It takes about five minutes and has three parts:
 **You need Python 3.11 or newer.** Check with `python3 --version` (Windows: `py --version`). If
 it is missing or older, get it from [python.org/downloads](https://www.python.org/downloads/).
 
+> **New to the terminal?**
+> - Open it: Windows: Start menu > type `PowerShell` > Enter (no "Run as administrator" needed).
+>   macOS: Spotlight > type `Terminal` > Enter.
+> - Run the commands one at a time: paste one (right-click or Ctrl+V / Cmd+V), press Enter, wait.
+> - If a long command breaks into two lines when you paste it, it fails ("is not recognized...").
+>   Paste it again in one piece.
+> - Replace text in `<angle brackets>` with your own value, without the brackets.
+
 ### macOS and Linux (easy install)
 
 Installs into your home folder only, no administrator rights. Open a terminal and run these one
@@ -89,8 +98,9 @@ at a time:
 
 ### Windows
 
-Windows is less tested: installing, `thread setup` and `thread serve` were checked on Windows 11,
-the full browser flow was not. Open **PowerShell** and run these one at a time:
+Windows is less tested: installing, `thread setup`, `thread serve` and the browser flow (connect,
+save with review, continue in a new chat) were checked on Windows 11 in Chrome. Open
+**PowerShell** and run these one at a time:
 
 1. Make a folder for the program:
    ```
@@ -102,17 +112,23 @@ the full browser flow was not. Open **PowerShell** and run these one at a time:
    ```
    .\python.exe -m pip install "threadvault[recommended] @ https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases/download/v0.1.0/threadvault-0.1.0-py3-none-any.whl"
    ```
+   It ends with `Successfully installed ...`. If it says `HTTP error 404`, wait a moment and run it
+   again (GitHub downloads sometimes fail briefly). A notice about a new pip version can be ignored.
 3. Create your vault:
    ```
    .\thread.exe setup
    ```
+   It prints `vault ready at ...`. "Automatic start is not available here" is normal on Windows. It
+   also mentions Gemini: Gemini is not supported yet, so ignore that.
 4. Start the service, and leave this window open while you save from the browser:
    ```
    .\thread.exe serve
    ```
 
 Automatic start at login (`thread setup`) is macOS and Linux only, so on Windows run
-`thread serve` yourself each time.
+`thread serve` yourself each time. In a new PowerShell window, first go back to the program folder
+with `cd "$env:USERPROFILE\threadvault\Scripts"`. `serve` keeps its window busy until you press
+Ctrl+C, so open a second window for any other command.
 
 ### Any other system
 
@@ -246,6 +262,10 @@ thread verify
 Prints `ok` for every thread. If anyone edits a saved message, `verify` reports it and exits with
 code 1.
 
+You may also see `note: No trusted keys were available...`. This is a warning, not an error: without
+signing keys, someone who can write to your vault folder could rewrite a thread and recalculate every
+check, and `verify` would not notice. To sign records, see [Extras](#extras).
+
 ### Every day
 
 - `thread serve` runs the local service on `127.0.0.1:8765`, which the browser extension talks
@@ -268,7 +288,8 @@ The extension needs the program running: `thread serve`, or `thread setup` for a
 **Option A: the ready-made zip (no building needed).** Download the Chrome or Firefox zip from the
 [Releases page](https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases) and unzip it.
 - Chrome: open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and choose
-  the unzipped folder.
+  the unzipped folder (the one that contains `manifest.json`). Keep that folder: Chrome loads the
+  extension from it.
 - Firefox: `about:debugging` > This Firefox > Load Temporary Add-on > choose `manifest.json` in the
   unzipped folder. Firefox forgets temporary add-ons when it restarts, so load it again after a
   restart.
@@ -283,17 +304,26 @@ The extension needs the program running: `thread serve`, or `thread setup` for a
 or in the toolbar popup), then press **Allow** on the page that opens. No token to copy, no
 extension id to look up.
 
+Tip: to see the `t` icon in Chrome's toolbar, click the puzzle piece 🧩 and pin threadvault.
+
 ### Save a chat's summary
 
-1. Open a chat, click the threadvault icon (`t`), press **Save this chat's summary**.
-2. Press send in the chat. The AI writes a short structured summary.
-3. A review page opens. Read it, correct or delete anything wrong, press **Save**.
+1. Open a chat, click the threadvault icon (`t`), press **Save this chat's summary**. If the chat
+   was already open before you installed the extension, reload the page (F5) first.
+2. Press send in the chat. The AI writes a short structured summary. Wait until it has finished.
+3. A review page opens **in a new tab**. Read it, correct or delete anything wrong, press **Save**.
+
+If saving is refused because of a secret, the message says what and where, for example
+`api_key at $.content.open_questions[0].text` means "a key, in Open questions, item 1". Remove it
+there and press **Save** again. AIs often leave keys out of a summary on their own; then there is
+nothing to block.
 
 ### Continue a saved thread in another AI
 
 In a new ChatGPT or Claude chat, click the icon, choose a thread under "Continue a saved thread
 here...", press **Bring it into this chat**. The chat box fills with the cleaned, wrapped text and
-the files attach. **You press send.**
+the files attach. **You press send.** If the vault refuses, that thread contains a secret, so it
+is not sent.
 
 > **🔒 What protects you here**
 > - Nothing is saved until you press **Save**, and you see and can correct everything first.
@@ -341,8 +371,8 @@ open it.
 
 ## Moving a conversation to another AI
 
-1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT,
-   Claude, Gemini, ...).
+1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT
+   or Claude).
 2. Press **Copy for another AI**.
 3. Paste it into the new chat.
 
@@ -480,7 +510,7 @@ permission away again.
 | | What it is | What the policy says |
 |---|---|---|
 | **Clients** | programs that use your vault: browser extension, Claude Desktop, plugins | their capabilities (below) |
-| **Destinations** | where text may go: ChatGPT, Claude, Gemini, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
+| **Destinations** | where text may go: ChatGPT, Claude, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
 
 Capabilities a client can get:
 - `read`: read threads
@@ -562,7 +592,7 @@ Needs `pip install -e ".[llm]"` and an API key in your environment (for example
 
 | Command | What it does |
 |---|---|
-| `thread import chatgpt\|claude\|gemini\|markdown <file>` | import conversations (stored as unverified) |
+| `thread import chatgpt\|claude\|markdown <file>` | import conversations (stored as unverified) |
 | `thread list` / `show` | list threads / print one |
 | `thread pack` | print the wrapped text an AI would get, **before** private details are hidden (use `export` to see the cleaned version) |
 | `thread fork <id>` | new branch sharing history; becomes current |
@@ -673,14 +703,14 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
 
 ### ⏳ Not verified end to end
 
-- importing a real ChatGPT, Claude or Gemini export
+- importing a real ChatGPT or Claude export
 - "Bring it into this chat" and automatic file attach on the live sites: they depend on each
   site's page layout and can break when the site changes; the extension turns saving off and says
   so if the layout is not recognised
 - `thread ask` with a real API key
 - the Streamlit page by hand
 
-Also: there is no Gemini page support in the extension, and no store listing yet.
+Also: there is no store listing yet.
 
 ## License
 
@@ -713,7 +743,7 @@ CI runs ruff, mypy and pytest on Python 3.11 and 3.13; all must pass before a PR
 | `src/threadvault/core/` | thread store, file store, hash chain, verify, pack, access log, expiry |
 | `src/threadvault/scanners/` | 🔒 secret scanning, file sanitising, prompt-injection patterns |
 | `src/threadvault/cli/` | the `thread` command, local service, vault pages, attach, share |
-| `src/threadvault/importers/` | ChatGPT, Claude, Gemini and Markdown importers |
+| `src/threadvault/importers/` | ChatGPT, Claude and Markdown importers |
 | `src/threadvault/connector/`, `privacy/`, `policy/`, `agent/` | MCP connector, 🔒 redaction, policy and plugins, handover and second-opinion agents |
 | `src/threadvault/ui/` | the Streamlit compare page and its data logic |
 | `extension/` | Manifest V3 browser extension (Chrome and Firefox) |
