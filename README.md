@@ -496,29 +496,55 @@ validate.
 
 ## Claude Desktop, plugins, second opinion
 
-**Claude Desktop (MCP connector)**
+### Claude Desktop (MCP connector)
 
-```
-thread mcp-config --allow
-```
-prints the setting to paste into Claude Desktop (Settings > Developer > Edit Config) and lets it read,
-append and save handovers. Saving a handover always asks you first. Everything it reads is cleaned
-for the destination and wrapped as data. The connector is started by Claude Desktop (`thread mcp`).
+Lets the Claude Desktop app read your saved threads directly, without copy and paste.
 
-**Plugins** are trusted only by the exact hash of their file:
-`thread plugin pin <name> <file>`, `thread plugin list`, `thread plugin check <name> <file>`,
-`thread plugin unpin <name>`. A changed file is refused. A pinned plugin still needs capabilities in
-the policy (`thread policy allow plugin:<name> ...`).
+1. Run:
+   ```
+   thread mcp-config --allow
+   ```
+   It prints the setting to paste into Claude Desktop and lets it read, append and save handovers.
+2. In Claude Desktop, open **Settings > Developer > Edit Config** and paste it.
 
-**Second opinion** (ask another AI the same question on a fork, private details hidden first):
+The connector is started by Claude Desktop (`thread mcp`); you do not run it yourself.
 
-```
-thread fork <thread-id> --label ask-gpt
-thread policy allow second-ai read append network
-thread ask <thread-id> <fork-branch> "your question" --model openai/gpt-5 --to openai
-```
-Needs `pip install -e ".[llm]"` and an API key in your environment (for example `OPENAI_API_KEY`).
-Never put keys in the repository.
+🔒 Saving a handover always asks you first. Everything it reads is cleaned for the destination and
+wrapped as data.
+
+### Plugins
+
+🔒 Plugins are trusted only by the exact hash of their file. A changed file is refused.
+
+| Command | What it does |
+|---|---|
+| `thread plugin pin <name> <file>` | trust this exact file |
+| `thread plugin list` | show trusted plugins |
+| `thread plugin check <name> <file>` | check a file against its pin |
+| `thread plugin unpin <name>` | stop trusting it |
+
+A pinned plugin still needs capabilities in the policy (`thread policy allow plugin:<name> ...`).
+
+### Second opinion
+
+Ask another AI the same question on a fork (a copy of the thread's history), with private details
+hidden first.
+
+1. Make the fork:
+   ```
+   thread fork <thread-id> --label ask-gpt
+   ```
+2. Allow the second-opinion tool to read, add the answer and use the network:
+   ```
+   thread policy allow second-ai read append network
+   ```
+3. Ask:
+   ```
+   thread ask <thread-id> <fork-branch> "your question" --model openai/gpt-5 --to openai
+   ```
+
+Needs `pip install -e ".[llm]"` and an API key in your environment (for example
+`OPENAI_API_KEY`). 🔒 Never put keys in the repository.
 
 ## Command reference
 
