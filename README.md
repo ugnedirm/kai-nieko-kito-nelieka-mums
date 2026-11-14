@@ -680,8 +680,7 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
 - `thread ask` with a real API key
 - the Streamlit page by hand
 
-Also: there is no Gemini page support in the extension. Installing still needs developer steps:
-there is no packaged installer or store listing.
+Also: there is no Gemini page support in the extension, and no store listing yet.
 
 ## License
 
