@@ -1,13 +1,29 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>threadvault</title>
+<html lang="en"><head><meta charset="utf-8"><title>When nothing else is left</title>
 <style>
-body{font:14px/1.45 system-ui,sans-serif;width:320px;padding:12px;margin:0}
-h3{margin:0 0 6px}p{margin:6px 0}.big{font-size:15px;padding:10px}
-button{display:block;width:100%;margin:6px 0;padding:7px;cursor:pointer}
-.ok{color:#0a7a2f;font-weight:600}.bad{color:#b00020;font-weight:600}.muted{color:#666;font-size:12px}
-ol{margin:6px 0 6px 18px;padding:0}details{margin-top:8px}li{margin:2px 0}
+:root{color-scheme:light dark;--accent:#6A31A6;--accent-hover:#58288b;--accent-text:#6A31A6;
+--ink:#1d1a22;--muted:#6f6a78;--line:#e7e4ec;--bg:#fbfafc;--card:#fff;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root{--accent-hover:#7c40bd;--accent-text:#c3a2e8;--ink:#ebe8f0;
+--muted:#9a94a5;--line:#2c2933;--bg:#141218;--card:#1b1920;--bad:#f2928b}}
+body{font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;width:320px;
+padding:16px;margin:0;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+h3{margin:0 0 8px;font-size:14px;font-weight:600}
+h3::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+background:var(--accent);margin-right:8px;vertical-align:1px}
+p{margin:6px 0}.big{font-size:14px;padding:9px}a{color:var(--accent-text)}
+button{display:block;width:100%;margin:6px 0;padding:7px;cursor:pointer;font:inherit;font-weight:500;
+color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:7px}
+button:hover{border-color:var(--accent);color:var(--accent-text)}
+button.big{color:#fff;background:var(--accent);border-color:var(--accent)}
+button.big:hover{background:var(--accent-hover);color:#fff}
+select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--card);
+color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ok{color:var(--accent-text);font-weight:500}.bad{color:var(--bad);font-weight:500}
+.muted{color:var(--muted);font-size:12px}
+ol{margin:6px 0 6px 18px;padding:0}details{margin-top:10px}summary{cursor:pointer}li{margin:2px 0}
 </style></head>
-<body><h3>threadvault</h3>
+<body><h3>When nothing else is left</h3>
 <div id="status" class="muted">Checking...</div>
 <div id="body"></div>
 <details><summary class="muted">Troubleshoot</summary>

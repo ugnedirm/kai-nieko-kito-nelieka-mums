@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "threadvault",
+  "name": "When nothing else is left",
   "version": "0.1.0",
-  "description": "Save a reviewed handover (and optionally the conversation) from ChatGPT or Claude into your local threadvault.",
+  "description": "Save a reviewed handover (and optionally the conversation) from ChatGPT or Claude into your local vault.",
   "permissions": [
     "storage"
   ],
@@ -37,7 +37,7 @@
     }
   ],
   "action": {
-    "default_title": "threadvault",
+    "default_title": "When nothing else is left",
     "default_popup": "pages/popup.html"
   },
   "options_ui": {

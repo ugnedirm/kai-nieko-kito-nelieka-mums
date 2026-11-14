@@ -29,27 +29,58 @@ from threadvault.ui.compare_data import (
 )
 
 CSS = """
-body{font:16px/1.5 system-ui,sans-serif;margin:0;background:#f6f6f8;color:#1c1c24}
-header{background:#2b2b3a;color:#fff;padding:14px 24px}header a{color:#fff;text-decoration:none}
-header b{font-size:20px}main{max-width:820px;margin:24px auto;padding:0 20px}
-.card{background:#fff;border-radius:12px;padding:16px 20px;margin:12px 0;box-shadow:0 1px 3px #0002}
-.card a{color:#1a56db;font-weight:600;text-decoration:none;font-size:18px}
-.card a.btn{color:#fff;font-size:16px}
-.muted{color:#666;font-size:14px}.ok{color:#0a7a2f;font-weight:600}.bad{color:#b00020;font-weight:600}
-.warn{background:#fff7e0;border-left:4px solid #e0a800;padding:10px 14px;border-radius:6px}
-pre{white-space:pre-wrap;word-wrap:break-word;background:#fafafa;border:1px solid #ddd;
-border-radius:8px;padding:12px;font:14px/1.5 ui-monospace,monospace}
-textarea{width:100%;height:220px;font:13px ui-monospace,monospace;box-sizing:border-box}
-button,.btn{background:#1a56db;color:#fff;border:0;border-radius:8px;padding:10px 18px;
-font-size:16px;cursor:pointer;text-decoration:none;display:inline-block}
-button.secondary{background:#e4e4ea;color:#222}
-table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #ddd;
-padding:6px 8px;text-align:left;vertical-align:top}tr.bad td{background:#fdeaea}
-.diff{font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap;word-wrap:break-word}
-.diff .add{background:#e6f6ea}.diff .del{background:#fdeaea}.diff .same{color:#666}
-.addmark{background:#e6f6ea;padding:0 4px}.delmark{background:#fdeaea;padding:0 4px}
+:root{color-scheme:light dark;--accent:#6A31A6;--accent-hover:#58288b;--accent-text:#6A31A6;
+--accent-soft:#f3edf9;--code:#4b2178;--ink:#1d1a22;--muted:#6f6a78;--line:#e7e4ec;--bg:#fbfafc;
+--card:#fff;--bad:#b3261e;--bad-soft:#fcefee;--warn-soft:#fbf6ea;--warn-line:var(--warn-line)}
+@media (prefers-color-scheme:dark){:root{--accent-hover:#7c40bd;--accent-text:#c3a2e8;
+--accent-soft:#2a2135;--code:#d9c4f2;--ink:#ebe8f0;--muted:#9a94a5;--line:#2c2933;--bg:#141218;
+--card:#1b1920;--bad:#f2928b;--bad-soft:#3a1f1e;--warn-soft:#2e2717;--warn-line:#b8923f}}
+*{box-sizing:border-box}
+body{font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;
+background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+header{max-width:860px;margin:0 auto;padding:28px 20px 0;display:flex;align-items:baseline;
+gap:28px;flex-wrap:wrap}
+header b{font-weight:600;font-size:15px;letter-spacing:-.01em;color:var(--ink)}
+header b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+background:var(--accent);margin-right:10px;vertical-align:2px}
+header a{color:var(--muted);text-decoration:none;font-size:14px;margin-right:18px}
+header a:hover{color:var(--accent-text)}
+main{max-width:860px;margin:0 auto;padding:24px 20px 64px}
+h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin:24px 0 16px}
+h2{font-size:16px;font-weight:600;margin:0 0 8px}h3{font-size:14px;font-weight:600}
+a{color:var(--accent-text)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;
+margin:12px 0}
+.card a{color:var(--ink);font-weight:500;text-decoration:none;font-size:16px}
+.card a:hover{color:var(--accent-text)}
+.card a.btn{color:#fff;font-size:14px}.card a.btn.secondary{color:var(--ink)}
+.muted{color:var(--muted);font-size:13px}
+.ok{color:var(--accent-text);font-weight:500}.bad{color:var(--bad);font-weight:500}
+.warn{background:var(--warn-soft);border-left:2px solid var(--warn-line);padding:10px 14px;border-radius:4px}
+.card.warn{border-left:2px solid var(--warn-line)}
+pre{white-space:pre-wrap;word-wrap:break-word;background:var(--bg);border:1px solid var(--line);
+border-radius:8px;padding:14px;font:13px/1.6 ui-monospace,"SF Mono",Consolas,monospace}
+textarea{width:100%;height:220px;font:13px/1.5 ui-monospace,Consolas,monospace;padding:12px;
+border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+button,.btn{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:7px;
+padding:8px 16px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;
+display:inline-block;transition:background .15s}
+button:hover,.btn:hover{background:var(--accent-hover)}
+button.secondary,.btn.secondary{background:var(--card);color:var(--ink);border-color:var(--line)}
+button.secondary:hover,.btn.secondary:hover{border-color:var(--accent);color:var(--accent-text)}
+input,select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--line);
+border-radius:6px;background:var(--card);color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);
+padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:500}
+tr.bad td{background:var(--bad-soft)}
+.diff{font:13px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-wrap:break-word}
+.diff .add{background:var(--accent-soft)}.diff .del{background:var(--bad-soft)}
+.diff .same{color:var(--muted)}
+.addmark{background:var(--accent-soft);padding:0 4px}.delmark{background:var(--bad-soft);padding:0 4px}
 .cols{display:flex;gap:16px;align-items:flex-start}.col{flex:1;min-width:0}select{max-width:100%}
-details{margin:10px 0}code{background:#eee;padding:1px 5px;border-radius:4px}
+details{margin:10px 0}summary{cursor:pointer}
+code{background:var(--accent-soft);color:var(--code);padding:1px 6px;border-radius:4px;font-size:.9em}
 """
 
 JS = """
@@ -133,23 +164,23 @@ def esc(value: object) -> str:
 
 
 def page(title: str, body: str, *, nav: bool = True) -> str:
-    links = ('<a href="/">My saved threads</a> &nbsp; <a href="/compare">Compare</a> &nbsp; '
+    links = ('<a href="/">My saved threads</a> <a href="/compare">Compare</a> '
              '<a href="/log">Access log</a>') if nav else ""
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{esc(title)}</title>"
         '<link rel="stylesheet" href="/static/viewer.css"></head><body>'
-        f"<header><b>threadvault</b> &nbsp; {links}</header><main>{body}</main>"
+        f"<header><b>When nothing else is left</b> <nav>{links}</nav></header><main>{body}</main>"
         '<script src="/static/viewer.js"></script></body></html>'
     )
 
 
 def locked() -> str:
-    return page("threadvault", """
+    return page("When nothing else is left", """
 <div class="card"><h2>Your vault is locked</h2>
 <p>For your safety this page only opens from a link made just for you.</p>
-<p><b>Easiest:</b> click the threadvault icon in your browser toolbar, then
+<p><b>Easiest:</b> click the extension icon in your browser toolbar, then
 <b>Open my saved threads</b>.</p>
 <p class="muted">Or, in a terminal, run <code>thread open</code>.</p></div>""", nav=False)
 
@@ -215,7 +246,7 @@ def _hint_card(h: MergeHint) -> str:
 def home(threads: Sequence[ThreadInfo], hints: Sequence[MergeHint] = ()) -> str:
     if not threads:
         body = ("<div class='card'><h2>Nothing saved yet</h2><p>Open a ChatGPT or Claude chat, click "
-                "the threadvault icon and choose <b>Save this chat's summary</b>.</p></div>")
+                "the extension icon and choose <b>Save this chat's summary</b>.</p></div>")
     else:
         rows = []
         for t in sorted(threads, key=lambda x: x.updated_at, reverse=True):
@@ -249,14 +280,14 @@ def _security_card(findings: Sequence[tuple[str, list[str]]]) -> str:
     if not findings:
         return ("<div class='card'><h2>Security check</h2><p class='ok'>&#10003; No text that looks like "
                 "an instruction to an AI was found.</p><p class='muted'>This is a heuristic, not a "
-                "guarantee. Whatever an AI loads from threadvault is wrapped as data, labelled with who "
+                "guarantee. Whatever an AI loads from the vault is wrapped as data, labelled with who "
                 "wrote each part, and told not to obey it.</p></div>")
     rows = "".join(f"<li><b>{esc(w)}</b>: {esc(', '.join(injection.describe(c) for c in cats))}</li>"
                    for w, cats in findings[:30])
     return ("<div class='card warn'><h2>&#9888; Possible hidden instructions</h2>"
             f"<p>{len(findings)} place(s) contain text that looks like orders to an AI. This can be an "
             "attempt to make an AI misbehave when it reads this thread, or a false alarm.</p>"
-            f"<ul>{rows}</ul><p class='muted'>When this thread is given to an AI, threadvault wraps it "
+            f"<ul>{rows}</ul><p class='muted'>When this thread is given to an AI, the vault wraps it "
             "as data, labels who wrote each message, flags these parts and tells the AI not to act "
             "on them. Read them before you share.</p></div>")
 
@@ -501,7 +532,7 @@ def _summary_compare(left: tuple[int, str] | None, right: tuple[int, str] | None
 def pairing(pending: Sequence[tuple[str, str, int]], csrf: str) -> str:
     """`pending` is (request id, extension origin, seconds since asked) waiting for a decision."""
     if not pending:
-        body = ("<div class='card'><h2>Nothing to approve</h2><p>In the threadvault browser extension "
+        body = ("<div class='card'><h2>Nothing to approve</h2><p>In the browser extension, "
                 "click <b>Connect to my vault</b>, then come back to this page and reload it.</p>"
                 "</div>")
     else:
@@ -510,7 +541,7 @@ def pairing(pending: Sequence[tuple[str, str, int]], csrf: str) -> str:
             short = origin.split("://", 1)[-1]
             cards.append(f"""<div class="card"><h2>Allow this browser extension?</h2>
 <p>An extension is asking to save to your vault. Only allow it if you just clicked
-<b>Connect to my vault</b> in the threadvault extension yourself.</p>
+<b>Connect to my vault</b> in the extension yourself.</p>
 <p class="muted">Extension id: <code>{esc(short)}</code> &middot; asked {esc(age)} seconds ago.
 If you did not click Connect in the last minute, choose <b>Don't allow</b>.</p>
 <form method="post" action="/pair/decide">

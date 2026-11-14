@@ -40,7 +40,7 @@ def _column(view: ThreadView, diverge: int | None) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="threadvault compare", layout="wide")
+    st.set_page_config(page_title="Compare - When nothing else is left", layout="wide")
     vault = open_vault(_args())
     threads = vault.list_threads()
     if not threads:

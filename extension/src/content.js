@@ -78,14 +78,20 @@
     if (host) host.remove();
     host = document.createElement("div");
     const shadow = host.attachShadow({ mode: "closed" });
+    const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const c = dark ? { bg: "#1b1920", ink: "#ebe8f0", line: "#2c2933", title: "#c3a2e8" }
+      : { bg: "#ffffff", ink: "#1d1a22", line: "#e7e4ec", title: "#6A31A6" };
     const box = h("div", "position:fixed;z-index:2147483647;right:16px;bottom:16px;max-width:340px;" +
-      "background:#1f2937;color:#fff;font:14px system-ui,sans-serif;padding:12px 14px;border-radius:8px;" +
-      "box-shadow:0 4px 16px rgba(0,0,0,.4)");
-    box.append(h("div", "font-weight:600;margin-bottom:6px", "threadvault"), h("div", "margin-bottom:10px", message));
+      "background:" + c.bg + ";color:" + c.ink + ";border:1px solid " + c.line + ";" +
+      "font:14px/1.5 system-ui,sans-serif;padding:14px 16px;border-radius:10px;" +
+      "box-shadow:0 6px 24px rgba(0,0,0,.12)");
+    box.append(h("div", "font-weight:600;margin-bottom:6px;color:" + c.title, "When nothing else is left"),
+      h("div", "margin-bottom:12px", message));
     const row = h("div", "display:flex;gap:8px;justify-content:flex-end");
     for (const b of buttons.concat([{ label: "Dismiss" }])) {
-      const btn = h("button", "cursor:pointer;border:0;border-radius:6px;padding:5px 10px;" +
-        "background:" + (b.primary ? "#2563eb" : "#4b5563") + ";color:#fff", b.label);
+      const btn = h("button", "cursor:pointer;border-radius:7px;padding:5px 12px;font:inherit;" +
+        "font-weight:500;border:1px solid " + (b.primary ? "#6A31A6" : c.line) + ";background:" +
+        (b.primary ? "#6A31A6" : "transparent") + ";color:" + (b.primary ? "#fff" : c.ink), b.label);
       btn.addEventListener("click", () => { host.remove(); host = null; if (b.run) b.run(); });
       row.append(btn);
     }

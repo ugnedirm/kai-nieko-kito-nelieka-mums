@@ -53,7 +53,7 @@
     if (!v.running) {
       status.className = "bad";
       status.textContent = "Your vault is not running";
-      body.append(el("p", { textContent: "threadvault is a small program on your computer that keeps your saved chats. It isn't running yet." }),
+      body.append(el("p", { textContent: "The vault is a small program on your computer that keeps your saved chats. It isn't running yet." }),
         el("button", { className: "big", textContent: "Show me how to start it", onclick: () => open("pages/welcome.html") }));
       return;
     }
