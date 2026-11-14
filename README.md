@@ -465,20 +465,34 @@ are noticed.
 
 ## Who may do what (policy)
 
-`policy.json` in the vault folder is the only thing that grants access. **Default deny**: a client or
-destination that is not listed gets nothing.
+Think of `policy.json` (in the vault folder) as the guest list of your vault. It is the only
+thing that grants access. 🔒 **Default deny**: a client or destination that is not listed gets
+nothing.
 
 ```
 thread policy show
 thread policy allow claude-desktop read append save_handover
 thread policy revoke claude-desktop
 ```
+These show the list, let Claude Desktop read, add messages and save handovers, and take that
+permission away again.
 
-- **Clients** (browser extension, Claude Desktop, plugins) have capabilities: `read`, `append`,
-  `file_read`, `save_handover`, `export`, `forget`, `network`.
-- **Destinations** (ChatGPT, Claude, Gemini, openai, anthropic, local) say where text may go, with a
-  **profile**: what to hide, whether secrets block, whether attachments are allowed.
-- Every change keeps the previous file as `policy.json.bak` and refuses a policy that does not validate.
+| | What it is | What the policy says |
+|---|---|---|
+| **Clients** | programs that use your vault: browser extension, Claude Desktop, plugins | their capabilities (below) |
+| **Destinations** | where text may go: ChatGPT, Claude, Gemini, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
+
+Capabilities a client can get:
+- `read`: read threads
+- `append`: add messages
+- `file_read`: read attached files
+- `save_handover`: save a handover summary
+- `export`: export a thread
+- `forget`: delete files
+- `network`: reach the internet (for example the second-opinion tool)
+
+🔒 Every change keeps the previous file as `policy.json.bak` and refuses a policy that does not
+validate.
 
 ## Claude Desktop, plugins, second opinion
 
