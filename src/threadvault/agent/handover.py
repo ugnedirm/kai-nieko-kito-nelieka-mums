@@ -9,6 +9,7 @@ Retry or review happens in the caller (extension, MCP tool, CLI).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -104,11 +105,64 @@ def parse_reply(reply: str, known_files: dict[str, str] | None = None) -> ParseR
                                                                                  problems, warnings))]
     if problems:
         return ParseResult(None, problems, warnings)
+    _quarantine_claims(content, warnings)
 
     schema_problems = schemas.errors_at("handover", "#/$defs/content", content)
     if schema_problems:
         return ParseResult(None, schema_problems, warnings)
     return ParseResult(content, [], warnings)
+
+
+# A handover is history. It must not grant permissions (SPEC 7.5, threat T4) or carry
+# commands for the next AI (T3). Such lines are not deleted (the user should see them) but
+# moved to "uncertain" with a reason, so they can never pass as a decision or a fact.
+_CLAIM_PATTERNS = (
+    ("claims a permission or approval", re.compile(
+        # "approved/allowed ..." only when aimed at the AI or at a risky action, so a normal
+        # decision ("we allowed 2 days for Porto", "user approved the budget") is not flagged.
+        r"\b(?:approved|authori[sz]ed|granted|allowed|permitted|consented)\s+(?:to\s+)?"
+        r"(?:you|the\s+(?:ai|assistant|agent|model|tool)s?|claude|gpt|access|full\s+access|"
+        r"(?:delet|remov|run|execut|send|shar|upload|push|deploy|install|transfer|pay|wip)\w*)\b"
+        r"|\b(?:permission|approval|consent|authori[sz]ation)\s+(?:is|was|has\s+been|had\s+been)\s+"
+        r"(?:already\s+)?(?:granted|given|confirmed)\b"
+        r"|\byou\s+(?:are|have\s+been)\s+(?:now\s+)?(?:allowed|authori[sz]ed|permitted)\b"
+        r"|\b(?:no\s+need\s+to|without)\s+(?:ask|confirm|check)\w*\s+(?:with\s+)?(?:the\s+)?user\b",
+        re.IGNORECASE)),
+    ("gives instructions to the AI", re.compile(
+        r"\b(?:ignore|disregard|forget)\s+(?:all\s+|any\s+)?(?:the\s+)?(?:previous|prior|above|earlier)"
+        r"\s+(?:instructions|rules|messages)\b"
+        r"|\bsystem\s+prompt\b|\bnew\s+instructions\b|\byou\s+must\s+now\b"
+        r"|</?\s*historical_context\b|\b(?:run|execute)\s+(?:this|the\s+following)\s+command\b",
+        re.IGNORECASE)),
+)
+
+
+def claim_reason(text: str) -> str | None:
+    for reason, pattern in _CLAIM_PATTERNS:
+        if pattern.search(text):
+            return reason
+    return None
+
+
+def _quarantine_claims(content: Record, warnings: list[str]) -> None:
+    moved: list[Record] = []
+    for section in _SECTIONS:
+        if section in ("files", "uncertain"):
+            continue
+        keep: list[Record] = []
+        for i, item in enumerate(content.get(section, [])):
+            reason = claim_reason(item.get("text", ""))
+            if reason is None:
+                keep.append(item)
+                continue
+            warnings.append(f"{section}[{i}] {reason}; moved to 'uncertain' (history grants nothing)")
+            moved.append({"text": item["text"], "reason": f"Not trusted: {reason}."})
+        content[section] = keep
+    for i, item in enumerate(content.get("uncertain", [])):
+        reason = claim_reason(item.get("text", ""))
+        if reason:
+            warnings.append(f"uncertain[{i}] {reason}")
+    content["uncertain"] = content.get("uncertain", []) + moved
 
 
 def _clean_item(section: str, i: int, item: object, known_files: dict[str, str],

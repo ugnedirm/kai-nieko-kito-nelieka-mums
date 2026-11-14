@@ -9,8 +9,8 @@ Tool results and errors never contain matched secrets (CLAUDE.md rule 3).
 
 from __future__ import annotations
 
-import json
 import os
+import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +25,7 @@ from threadvault.core.accesslog import AccessLog, MemoryAccessLog
 from threadvault.core.render import handover_text
 from threadvault.core.vault import FixtureVault, Vault
 from threadvault.policy.engine import decide, destination_profile
+from threadvault.policy.engine import load_policy as _load_policy
 from threadvault.privacy.outbound import (
     Outbound,
     Refused,
@@ -292,11 +293,11 @@ def build_server(tools: ConnectorTools) -> MCPServer:
 
 
 def load_policy(path: Path) -> Record | None:
-    """Missing policy file means default deny (no client allowed)."""
-    if not path.is_file():
-        return None
-    policy: Record = json.loads(path.read_text(encoding="utf-8"))
-    return policy
+    """Missing, broken or inconsistent policy file means default deny (no client allowed)."""
+    loaded = _load_policy(path)
+    for problem in loaded.problems:
+        print(f"threadvault: policy refused: {problem}", file=sys.stderr)
+    return loaded.policy
 
 
 def main() -> None:
