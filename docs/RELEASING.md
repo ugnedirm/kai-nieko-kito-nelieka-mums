@@ -4,14 +4,17 @@ What exists, what a release does, and what only the project owner can do. Read "
 
 ## Not done yet (needs the owner)
 
-- **A license.** There is no `LICENSE` file. Public distribution needs one (and the store listings
-  ask for it). Choose it yourself; this repository does not pick one for you.
+- **A license.** There is no `LICENSE` file, and the owner decided "not yet". Public distribution and both
+  stores need one. When you are ready: the copyright line chosen is "Copyright (c) 2026 The When nothing
+  else is left authors"; pick the license text (MIT, Apache-2.0 or AGPL-3.0 were the options), add it as
+  `LICENSE`, and add `license = ...` to `pyproject.toml`. **Do not push a release tag before this**:
+  a published release without a license means nobody else may legally use it.
 - **Store accounts and submission.** Nothing has been submitted to the Chrome Web Store or Firefox
   Add-ons. Both need an account in your name (Chrome charges a small one-time developer
   registration fee; check the current amount) and a review that can take days.
 - **A public repository.** The installer's default download is `github.com/.../archive/refs/heads/main.zip`,
   and the privacy policy link points at the repository: both need it public.
-- **A support contact** for the store listings, and **screenshots** (see below).
+- **A support contact** for the store listings (screenshots and listing text are ready).
 - **Mac `.dmg` and Windows `.exe` installers are not built.** They need code-signing (an Apple
   Developer account, about US$99 a year, for macOS notarization; a signing certificate for
   Windows) or users see "unidentified developer" / SmartScreen warnings. What exists instead:
@@ -68,10 +71,11 @@ The extension alone does nothing: it needs the local program (`thread setup`). S
    `src/threadvault/agent/prompts/handover_v1.txt` by `extension/tools/build.mjs`; if the reviewers ask
    for source, send the repository and say to run `cd extension && npm run build`.
 
-## Screenshots to take (suggested)
+## Listing text and screenshots
 
-The popup connected on a chat; the review page; a thread's page with the Security check and "Copy
-for another AI"; the Compare page. Use fake data and hide your own bookmarks and tabs.
+Ready to paste: `docs/STORE_LISTING.md` (names, descriptions, single purpose, permission reasons,
+reviewer notes). Four 1280x800 screenshots with fake data are in `docs/store/`; regenerate them after a
+design change with `python tools/make_store_screenshots.py` (needs the built extension and Chrome).
 
 ## Updating
 
