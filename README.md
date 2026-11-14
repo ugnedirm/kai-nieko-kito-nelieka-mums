@@ -30,7 +30,8 @@ and it only gets a cleaned copy.
 - ✅ **Trust**: every record is hash-chained, so an edited message is noticed; records can be signed.
 - ↔️ **Move**: take a conversation and its files from one AI to another in a few clicks.
 
-**Status:** working end to end for ChatGPT and Claude in Chrome and Firefox. See
+**Status:** working end to end for ChatGPT and Claude in Chrome and Firefox. Gemini and other AIs
+are planned. See
 [What is and is not verified](#what-is-and-is-not-verified) before you rely on it.
 
 ## Contents
@@ -246,6 +247,10 @@ thread verify
 Prints `ok` for every thread. If anyone edits a saved message, `verify` reports it and exits with
 code 1.
 
+You may also see `note: No trusted keys were available...`. This is a warning, not an error: without
+signing keys, someone who can write to your vault folder could rewrite a thread and recalculate every
+check, and `verify` would not notice. To sign records, see [Extras](#extras).
+
 ### Every day
 
 - `thread serve` runs the local service on `127.0.0.1:8765`, which the browser extension talks
@@ -341,8 +346,8 @@ open it.
 
 ## Moving a conversation to another AI
 
-1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT,
-   Claude, Gemini, ...).
+1. On a thread's page, under **Continue in another AI**, pick where you will paste it (ChatGPT
+   or Claude).
 2. Press **Copy for another AI**.
 3. Paste it into the new chat.
 
@@ -480,7 +485,7 @@ permission away again.
 | | What it is | What the policy says |
 |---|---|---|
 | **Clients** | programs that use your vault: browser extension, Claude Desktop, plugins | their capabilities (below) |
-| **Destinations** | where text may go: ChatGPT, Claude, Gemini, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
+| **Destinations** | where text may go: ChatGPT, Claude, openai, anthropic, local | a **profile**: what to hide, whether secrets block, whether attachments are allowed |
 
 Capabilities a client can get:
 - `read`: read threads
@@ -562,7 +567,7 @@ Needs `pip install -e ".[llm]"` and an API key in your environment (for example
 
 | Command | What it does |
 |---|---|
-| `thread import chatgpt\|claude\|gemini\|markdown <file>` | import conversations (stored as unverified) |
+| `thread import chatgpt\|claude\|markdown <file>` | import conversations (stored as unverified) |
 | `thread list` / `show` | list threads / print one |
 | `thread pack` | print the wrapped text an AI would get, **before** private details are hidden (use `export` to see the cleaned version) |
 | `thread fork <id>` | new branch sharing history; becomes current |
@@ -673,14 +678,14 @@ Details and the reasoning: `docs/THREAT_MODEL.md` (threats T1 to T37) and `docs/
 
 ### ⏳ Not verified end to end
 
-- importing a real ChatGPT, Claude or Gemini export
+- importing a real ChatGPT or Claude export
 - "Bring it into this chat" and automatic file attach on the live sites: they depend on each
   site's page layout and can break when the site changes; the extension turns saving off and says
   so if the layout is not recognised
 - `thread ask` with a real API key
 - the Streamlit page by hand
 
-Also: there is no Gemini page support in the extension, and no store listing yet.
+Also: there is no store listing yet.
 
 ## License
 
@@ -713,7 +718,7 @@ CI runs ruff, mypy and pytest on Python 3.11 and 3.13; all must pass before a PR
 | `src/threadvault/core/` | thread store, file store, hash chain, verify, pack, access log, expiry |
 | `src/threadvault/scanners/` | 🔒 secret scanning, file sanitising, prompt-injection patterns |
 | `src/threadvault/cli/` | the `thread` command, local service, vault pages, attach, share |
-| `src/threadvault/importers/` | ChatGPT, Claude, Gemini and Markdown importers |
+| `src/threadvault/importers/` | ChatGPT, Claude and Markdown importers |
 | `src/threadvault/connector/`, `privacy/`, `policy/`, `agent/` | MCP connector, 🔒 redaction, policy and plugins, handover and second-opinion agents |
 | `src/threadvault/ui/` | the Streamlit compare page and its data logic |
 | `extension/` | Manifest V3 browser extension (Chrome and Firefox) |
