@@ -15,8 +15,10 @@ V = ["--vault", str(VAULT)]
 
 
 @pytest.fixture(autouse=True)
-def _vault_copy(tmp_path: Path) -> None:
+def _vault_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The CLI writes (access log, handovers): run every test on a copy of the sample vault."""
+    # No test may touch the real ~/.threadvault: commands run without --vault use this folder.
+    monkeypatch.setenv("THREADVAULT_DIR", str(tmp_path / "default-vault"))
     copy = tmp_path / "vault"
     shutil.copytree(VAULT, copy)
     V[1] = str(copy)

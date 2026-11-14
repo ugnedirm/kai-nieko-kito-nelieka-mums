@@ -826,17 +826,36 @@ def test_changes_from_the_page_are_logged_as_ui_and_expiry_is_logged(env: Env) -
 
 
 # -- regression tests for the security review (server) ----------------------------------------------------
-def test_unread_post_bodies_close_the_connection_and_stalls_time_out(env: Env) -> None:
+def test_unread_post_bodies_are_drained_so_the_connection_stays_in_step(env: Env) -> None:
+    """A body the route never reads must not be parsed as the next request (smuggling), and the
+    answer must still arrive."""
     from threadvault.cli.serve import _Handler
     assert _Handler.timeout == 30
     conn = http.client.HTTPConnection("127.0.0.1", env.port, timeout=10)
-    conn.request("POST", "/v1/ping", body=b'{"smuggled": "GET /v1/threads HTTP/1.1"}',
-                 headers={"Host": f"127.0.0.1:{env.port}", "Origin": ORIGIN,
-                          "Authorization": f"Bearer {env.token}", "Content-Type": "application/json"})
+    head = {"Host": f"127.0.0.1:{env.port}", "Origin": ORIGIN, "Authorization": f"Bearer {env.token}",
+            "Content-Type": "application/json"}
+    conn.request("POST", "/v1/ping", body=b'{"smuggled": "GET /v1/threads HTTP/1.1"}', headers=head)
     r = conn.getresponse()
     r.read()
-    assert r.status == 200 and (r.getheader("Connection") or "").lower() == "close"
+    assert r.status == 200
+    conn.request("GET", "/v1/health", headers={"Host": f"127.0.0.1:{env.port}"})  # same connection
+    r2 = conn.getresponse()
+    assert r2.status == 200 and json.loads(r2.read()) == {"spec_version": "1"}
     conn.close()
+
+
+@pytest.mark.parametrize("size", [100, 50_000, 3_000_000])
+def test_a_refusal_reaches_the_client_even_when_a_big_body_was_never_read(env: Env, size: int) -> None:
+    """Closing with unread bytes sends a reset and the client lost the 401 (seen with 2 MB bodies;
+    on Linux even small ones). The refusal must always arrive."""
+    for _ in range(12):
+        conn = http.client.HTTPConnection("127.0.0.1", env.port, timeout=15)
+        conn.request("POST", "/v1/ingest", body=b"x" * size,
+                     headers={"Host": f"127.0.0.1:{env.port}", "Content-Type": "application/json"})
+        r = conn.getresponse()
+        r.read()
+        assert r.status == 401
+        conn.close()
 
 
 def test_session_is_short_and_pairing_page_shows_how_old_the_request_is(env: Env) -> None:

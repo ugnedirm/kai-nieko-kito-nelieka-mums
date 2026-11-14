@@ -43,6 +43,8 @@ from threadvault.types import Record
 
 MAX_BODY_BYTES = 70 * 1024 * 1024
 MAX_FORM_BYTES = 4096
+DRAIN_BYTES = MAX_BODY_BYTES  # a refused request's body is read and dropped (up to this much)
+DRAIN_SECONDS = 10.0  # ...but never for longer than this, so a slow sender cannot hold a thread
 RATE_LIMIT = 120  # requests per window, per token
 RATE_WINDOW_S = 60.0
 LOGIN_TTL_S = 120.0
@@ -270,8 +272,41 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")  # "no-referrer" makes browsers send Origin: null
 
+    def _drain_body(self) -> None:
+        """Read and drop a request body we did not use (a refused request, a route that needs none).
+
+        Closing a connection with unread request bytes makes the OS send a reset (always on Linux,
+        and for big bodies elsewhere), and the client then loses our answer: a refusal would look
+        like "service not reachable". Draining first lets the answer arrive. Bounded in size and in
+        time; a body we will not drain simply gets the connection closed."""
+        if self._body_read or self.command != "POST":
+            return
+        try:
+            remaining = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return
+        if remaining <= 0 or remaining > DRAIN_BYTES:
+            return
+        deadline = time.monotonic() + DRAIN_SECONDS
+        try:
+            while remaining > 0:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return
+                self.connection.settimeout(left)
+                chunk = self.rfile.read(min(65536, remaining))
+                if not chunk:
+                    return
+                remaining -= len(chunk)
+            self._body_read = True
+        except OSError:
+            return
+        finally:
+            self.connection.settimeout(self.timeout)
+
     def _finish(self, code: int, data: bytes, ctype: str, extra: dict[str, str] | None = None,
                 origin: str | None = None) -> None:
+        self._drain_body()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))

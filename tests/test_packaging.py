@@ -76,3 +76,10 @@ def test_the_project_is_mit_licensed_consistently() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
     assert project["license"] == "MIT" and project["license-files"] == ["LICENSE"]
     assert "## License" in (ROOT / "README.md").read_text()
+
+
+def test_the_tests_cannot_touch_the_real_home(tmp_path: Path) -> None:
+    """The autouse fixture in conftest gives every test a throwaway home."""
+    import os
+    assert "THREADVAULT_DIR" not in os.environ
+    assert Path.home().name.startswith("home") and Path.home() != Path("/")  # pytest's temp "home"

@@ -50,6 +50,16 @@ def handover(fact: str = "Budget is 1200 EUR", files: list[dict[str, Any]] | Non
                          "thread_state": {"source": "live-chat", "user_reviewed": True}}}
 
 
+@pytest.fixture(autouse=True)
+def _never_touch_the_real_home(tmp_path_factory: pytest.TempPathFactory,
+                               monkeypatch: pytest.MonkeyPatch) -> None:
+    """Commands run without --vault would write to ~/.threadvault. Every test gets a throwaway home
+    instead (tests once piled hundreds of junk threads into the developer's real vault)."""
+    home = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("THREADVAULT_DIR", raising=False)  # so the default is <that home>/.threadvault
+
+
 @pytest.fixture
 def vault(tmp_path: Path) -> DiskVault:
     return DiskVault(tmp_path / "vault", clock=make_clock(), token_counter=approx_tokens)
