@@ -247,9 +247,24 @@ thread verify
 Prints `ok` for every thread. If anyone edits a saved message, `verify` reports it and exits with
 code 1.
 
-You may also see `note: No trusted keys were available...`. This is a warning, not an error: without
-signing keys, someone who can write to your vault folder could rewrite a thread and recalculate every
-check, and `verify` would not notice. To sign records, see [Extras](#extras).
+You may also see `note: No trusted keys were available...`. This is a warning, not an error.
+
+> **🔒 What the keys are**
+> - **Fingerprints (always on):** every saved message gets a fingerprint (a hash) calculated from
+>   its text, and each fingerprint includes the previous one, so they form a chain. Change one
+>   message and its fingerprint no longer matches: `verify` reports it.
+> - **The weakness:** the way fingerprints are calculated is public. Someone who can write to your
+>   vault folder (malware, or another person on your computer) could change a message and
+>   recalculate the whole chain, and `verify` would say `ok`. That is what the note warns about.
+> - **Signing keys (off by default):** a secret key kept in your computer's password store
+>   (Windows Credential Manager, macOS Keychain). The vault stamps each record with it. Anyone can
+>   check a stamp, but nobody can make one without the key, so a rewritten vault is caught.
+> - **Like a paper document:** fingerprints are page numbers (they show a missing or swapped page,
+>   but anyone can renumber), signing is your signature on every page.
+>
+> Fingerprints alone catch accidental damage and careless edits. Turn signing on if you worry that
+> someone with access to your computer would deliberately rewrite your saved chats: see
+> [Extras](#extras).
 
 ### Every day
 
