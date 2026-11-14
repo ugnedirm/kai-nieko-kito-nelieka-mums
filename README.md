@@ -353,7 +353,7 @@ open it.
 
 ⚠️ Choose `local` only for use on your own computer: there nothing is hidden.
 
-### Files
+### Bringing the files along
 
 Files do not travel in the text. The text lists the files it does not contain ("Files in this
 record that are NOT included here: ..."), so the AI can ask you for them. To attach them:
