@@ -415,26 +415,30 @@ budget") are deliberately not flagged. The scanner is built to stay fast on host
 
 ## Files
 
-Every file path (browser save, attach in chat, `thread file add`, the vault page) cleans the file
-first, using `scanners/sanitize.py`:
+Files can say more than you think: a photo can contain the GPS location where it was taken, and a
+Word file the author's name, company, comments and tracked changes. 🔒 threadvault cleans every
+file before it is stored, on every path (browser save, attach in chat, `thread file add`, the vault
+page), using `scanners/sanitize.py`.
 
-- **Pictures** (JPEG, PNG): EXIF, GPS, comments and appended data are removed.
-- **Word, PowerPoint, Excel**: author, dates, company, custom properties, comments, speaker notes,
-  tracked changes, hidden sheets and thumbnails are removed, and so are the hidden details inside the
-  JPEG and PNG pictures they contain.
-- **PDF**: document metadata is removed. Form fields and pictures inside a PDF are reported, not
-  removed, so a PDF that has them asks you first.
-- **Not cleanable**: GIF, WebP, SVG and EMF pictures, embedded objects, custom XML and hidden slides
-  are reported, not claimed clean.
+| File type | Removed | Reported, not removed |
+|---|---|---|
+| **Pictures** (JPEG, PNG) | EXIF, GPS, comments and appended data | |
+| **Word, PowerPoint, Excel** | author, dates, company, custom properties, comments, speaker notes, tracked changes, hidden sheets and thumbnails, and the hidden details inside the JPEG and PNG pictures they contain | |
+| **PDF** | document metadata | form fields and pictures inside a PDF (so a PDF that has them asks you first) |
+| **Not cleanable** | | GIF, WebP, SVG and EMF pictures, embedded objects, custom XML and hidden slides: reported, not claimed clean |
 
-If something could not be removed, the vault says what and **asks you** (**Save anyway**). The file
-then stays on your computer and is **never sent to another AI**: "Continue here" and the copy text
-skip such files. The vault, not the browser, decides the stored file type. Limit: 50 MB per file
-(25 MB for files attached in chat, 5 MB for files picked up automatically from a page). Text inside
-Office files and PDFs is not scanned for secrets; plain text files are.
+> **🔒 If something could not be removed**, the vault says what and **asks you** (**Save anyway**).
+> The file then stays on your computer and is **never sent to another AI**: "Continue here" and the
+> copy text skip such files.
 
-Add a file yourself: **Attach a file** on a thread's page, or `thread file add <thread-id> <file>`.
-Fold a files-only thread into the chat it belongs to: **Merge** on the page, or `thread merge`.
+**Good to know**
+- The vault, not the browser, decides the stored file type.
+- Size limits: 50 MB per file, 25 MB for files attached in chat, 5 MB for files picked up
+  automatically from a page.
+- Text inside Office files and PDFs is not scanned for secrets; plain text files are.
+
+**Add a file yourself:** **Attach a file** on a thread's page, or `thread file add <thread-id> <file>`.
+**Fold a files-only thread into the chat it belongs to:** **Merge** on the page, or `thread merge`.
 
 ## Keeping and deleting
 
