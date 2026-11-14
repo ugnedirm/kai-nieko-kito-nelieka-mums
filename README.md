@@ -35,8 +35,6 @@ and it only gets a cleaned copy.
 
 ## Contents
 
-🔒 = about keeping your data safe
-
 1. [Install](#install)
 2. [Quick start](#quick-start)
 3. [The browser extension](#the-browser-extension)
