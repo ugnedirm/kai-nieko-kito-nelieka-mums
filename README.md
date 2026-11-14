@@ -699,24 +699,26 @@ install).
 
 ## Development
 
+**Before you start:** read `docs/SPEC.md` (behaviour) and `docs/THREAT_MODEL.md` first. Rules
+for contributors are in `CLAUDE.md`.
+
 ```
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q && ruff check . && mypy
-python tools/make_fixtures.py        # regenerate tests/fixtures/vault (never hand-edit it)
+python tools/make_fixtures.py
 ```
+The last command regenerates `tests/fixtures/vault` (never hand-edit it).
 
-CI runs ruff, mypy and pytest on Python 3.11 and 3.13; all must pass before a PR merges. Read
-`docs/SPEC.md` (behaviour) and `docs/THREAT_MODEL.md` first. Rules for contributors are in
-`CLAUDE.md`.
+CI runs ruff, mypy and pytest on Python 3.11 and 3.13; all must pass before a PR merges.
 
 | Path | Contents |
 |---|---|
 | `src/threadvault/core/` | thread store, file store, hash chain, verify, pack, access log, expiry |
-| `src/threadvault/scanners/` | secret scanning, file sanitising, prompt-injection patterns |
+| `src/threadvault/scanners/` | 🔒 secret scanning, file sanitising, prompt-injection patterns |
 | `src/threadvault/cli/` | the `thread` command, local service, vault pages, attach, share |
 | `src/threadvault/importers/` | ChatGPT, Claude, Gemini and Markdown importers |
-| `src/threadvault/connector/`, `privacy/`, `policy/`, `agent/` | MCP connector, redaction, policy and plugins, handover and second-opinion agents |
+| `src/threadvault/connector/`, `privacy/`, `policy/`, `agent/` | MCP connector, 🔒 redaction, policy and plugins, handover and second-opinion agents |
 | `src/threadvault/ui/` | the Streamlit compare page and its data logic |
 | `extension/` | Manifest V3 browser extension (Chrome and Firefox) |
 | `schemas/`, `docs/`, `tests/fixtures/`, `tools/` | shared contracts, specification, sample vault, generators |
