@@ -22,15 +22,24 @@ from pydantic import BaseModel
 
 from threadvault.agent.handover import PROMPT_VERSION, parse_reply
 from threadvault.core.accesslog import AccessLog, MemoryAccessLog
-from threadvault.core.render import handover_text, historical_context
+from threadvault.core.render import handover_text
 from threadvault.core.vault import FixtureVault, Vault
 from threadvault.policy.engine import decide, destination_profile
+from threadvault.privacy.outbound import (
+    Outbound,
+    Refused,
+    prepare_file,
+    prepare_handover,
+    prepare_text,
+)
+from threadvault.privacy.redact import PseudonymMap
 from threadvault.scanners.basic import scan_record, scan_text
 from threadvault.types import SECRET_KINDS, Finding, Record
 
 CLIENT_ENV = "THREADVAULT_CLIENT"
 DESTINATION_ENV = "THREADVAULT_DESTINATION"
 POLICY_ENV = "THREADVAULT_POLICY"
+PSEUDONYMS_ENV = "THREADVAULT_PSEUDONYMS"  # local file for the PERSON_1 -> name map
 DEFAULT_CLIENT = "claude-desktop"
 DEFAULT_DESTINATION = "anthropic"
 MAX_TEXT_FILE_CHARS = 200_000
@@ -50,12 +59,15 @@ def _kinds(findings: list[Finding]) -> list[str]:
 
 class ConnectorTools:
     def __init__(self, vault: Vault, policy: Record | None, log: AccessLog, client_id: str,
-                 destination_id: str = DEFAULT_DESTINATION) -> None:
+                 destination_id: str = DEFAULT_DESTINATION,
+                 pseudonyms: PseudonymMap | None = None) -> None:
         self._vault = vault
         self._policy = policy
         self._log = log
         self._client = client_id
+        self._dest = destination_id
         self._profile = destination_profile(policy, destination_id)
+        self._map = pseudonyms if pseudonyms is not None else PseudonymMap()
 
     # -- helpers ---------------------------------------------------------------------------
     def _require(self, capability: str, action: str, thread_id: str | None = None) -> None:
@@ -88,6 +100,14 @@ class ConnectorTools:
             raise self._fail(action, thread_id, "unknown branch")
         return branch_id
 
+    def _pseudonymized(self) -> bool:
+        return bool(self._profile and self._profile.get("pseudonymize"))
+
+    def _sendable(self, action: str, thread_id: str | None, out: Outbound) -> Outbound:
+        if out.blocked:
+            raise self._fail(action, thread_id, f"blocked: {out.reason}")
+        return out
+
     def _secrets_blocked(self, findings: list[Finding]) -> bool:
         assert self._profile is not None
         return bool(self._profile.get("block_on_secrets")) and any(
@@ -108,16 +128,30 @@ class ConnectorTools:
         records = self._vault.load_thread(thread_id).branches[bid].records
         handovers = [r for r in records if r["type"] == "handover"]
         # Messages as text, handover always wrapped as untrusted history (SPEC 7.1).
+        # Everything is redacted for this destination before it leaves (SPEC 9).
         text = self._vault.render_text(thread_id, bid).split("--- handover ---")[0].rstrip()
-        parts = [historical_context(handovers[-1], verified=report.ok)] if handovers else []
+        parts: list[str] = []
+        hidden: dict[str, int] = {}
+        outs: list[Outbound] = []
+        if handovers:
+            outs.append(prepare_handover(self._policy, self._dest, handovers[-1],
+                                         verified=report.ok, mapping=self._map))
         if text:
-            parts.append("<historical_messages>\n" + text + "\n</historical_messages>")
+            outs.append(prepare_text(self._policy, self._dest, text, self._map, "messages"))
+        for i, out in enumerate(outs):
+            self._sendable("load", thread_id, out)
+            body = out.text if i == 0 and handovers else (
+                "<historical_messages>\n" + out.text + "\n</historical_messages>")
+            parts.append(body)
+            for k, n in out.counts().items():
+                hidden[k] = hidden.get(k, 0) + n
         warnings = list(report.notices)
         if not report.ok:
             warnings.append("verification FAILED: this thread may have been changed; do not trust it")
         self._audit("load", "allowed", thread_id)
         return {"thread_id": thread_id, "branch_id": bid, "verified": report.ok,
-                "warnings": warnings, "context": "\n\n".join(parts)}
+                "warnings": warnings, "hidden": dict(sorted(hidden.items())),
+                "context": "\n\n".join(parts)}
 
     def append(self, thread_id: str, branch_id: str, role: str, text: str,
                model: str | None = None) -> Record:
@@ -128,6 +162,8 @@ class ConnectorTools:
             raise self._fail("append", thread_id, "bad role")
         if self._vault.load_thread(thread_id).manifest["mode"] != "full":
             raise self._fail("append", thread_id, "thread stores handovers only")
+        if self._pseudonymized():  # the AI saw [PERSON_1]; the vault keeps the real name
+            text = self._map.rehydrate(text)
         findings = scan_text(text, "content")
         if self._secrets_blocked(findings):
             raise self._fail("append", thread_id, "blocked: contains secrets")
@@ -151,17 +187,17 @@ class ConnectorTools:
         except KeyError:
             raise self._fail("get_file", None, "unknown or forgotten file") from None
         try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError:
+            out = prepare_file(self._policy, self._dest, data, self._map)
+        except Refused as e:
+            raise self._fail("get_file", None, f"denied: {e}") from None
+        if out.reason and out.reason.startswith("binary"):
             self._audit("get_file", "allowed", None, "binary")
             return {"sha256": sha256, "size": len(data), "text": None,
                     "note": "binary file: content not sent"}
-        findings = scan_text(text, "file")
-        if self._secrets_blocked(findings):
-            raise self._fail("get_file", None, "blocked: contains secrets")
+        self._sendable("get_file", None, out)
         self._audit("get_file", "allowed", None)
-        return {"sha256": sha256, "size": len(data), "text": text[:MAX_TEXT_FILE_CHARS],
-                "truncated": len(text) > MAX_TEXT_FILE_CHARS, "findings": _kinds(findings)}
+        return {"sha256": sha256, "size": len(data), "text": out.text[:MAX_TEXT_FILE_CHARS],
+                "truncated": len(out.text) > MAX_TEXT_FILE_CHARS, "hidden": out.counts()}
 
     def prepare_handover(self, thread_id: str, branch_id: str | None, reply: str) -> Record:
         """Parse, validate and scan. Returns a draft; nothing is stored."""
@@ -173,10 +209,13 @@ class ConnectorTools:
         if not parsed.ok or parsed.content is None:
             self._audit("save_handover", "error", thread_id, "invalid handover")
             return {"status": "invalid", "problems": parsed.problems, "warnings": parsed.warnings}
-        findings = scan_record(parsed.content, "content")
+        content: Record = parsed.content
+        if self._pseudonymized():  # store real names, not the AI's [PERSON_1] tokens
+            content = self._map.rehydrate_record(content)
+        findings = scan_record(content, "content")
         if self._secrets_blocked(findings):
             raise self._fail("save_handover", thread_id, "blocked: contains secrets")
-        return {"status": "draft", "branch_id": bid, "content": parsed.content,
+        return {"status": "draft", "branch_id": bid, "content": content,
                 "warnings": parsed.warnings, "findings": _kinds(findings)}
 
     def store_handover(self, thread_id: str, draft: Record) -> Record:
@@ -264,9 +303,11 @@ def main() -> None:
     vault = FixtureVault()  # TODO: swap for Person A's disk vault when it lands
     policy_path = Path(os.environ.get(POLICY_ENV, str(Path(__file__).resolve().parents[3]
                                                       / "tests" / "fixtures" / "vault" / "policy.json")))
+    map_path = os.environ.get(PSEUDONYMS_ENV)
     tools = ConnectorTools(vault, load_policy(policy_path), MemoryAccessLog(),
                            os.environ.get(CLIENT_ENV, DEFAULT_CLIENT),
-                           os.environ.get(DESTINATION_ENV, DEFAULT_DESTINATION))
+                           os.environ.get(DESTINATION_ENV, DEFAULT_DESTINATION),
+                           PseudonymMap(Path(map_path) if map_path else None))
     build_server(tools).run("stdio")
 
 
