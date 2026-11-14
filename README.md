@@ -54,25 +54,87 @@ and it only gets a cleaned copy.
 
 ## Install
 
-### Easy install (macOS and Linux)
+It takes about five minutes and has three parts:
 
-Needs Python 3.11 or newer. Installs into your home folder only, no administrator rights.
+1. **The program**: keeps your vault (your saved conversations) on your computer.
+2. **The browser extension**: saves chats from ChatGPT and Claude.
+3. **Connect them**: one click, see [The browser extension](#the-browser-extension).
 
-```
-curl -fsSL https://raw.githubusercontent.com/ugnedirm/kai-nieko-kito-nelieka-mums/main/scripts/install.sh -o install.sh
-sh install.sh
-thread --version
-thread setup
-```
+**You need Python 3.11 or newer.** Check with `python3 --version` (Windows: `py --version`). If
+it is missing or older, get it from [python.org/downloads](https://www.python.org/downloads/).
 
-(Read `install.sh` first if you like: it is short.) Then install the browser extension from the store,
-or from the zip on the release page (see "The browser extension"). To upgrade, run `sh install.sh`
-again. To remove the program: `sh install.sh --uninstall` (your saved threads are not touched).
+### macOS and Linux (easy install)
 
-Any system: `pip install "threadvault[recommended] @ <URL of a release wheel or source zip>"`. Windows
-has not been tested; `thread setup` (start at login) is macOS and Linux only, so on Windows run
-`thread serve` yourself. Maintainers: see `docs/RELEASING.md` (releases, store listings and what is
-still open) and `docs/PRIVACY.md`.
+Installs into your home folder only, no administrator rights. Open a terminal and run these one
+at a time:
+
+1. Download the installer (read `install.sh` first if you like: it is short):
+   ```
+   curl -fsSL https://raw.githubusercontent.com/ugnedirm/kai-nieko-kito-nelieka-mums/main/scripts/install.sh -o install.sh
+   ```
+2. Run it:
+   ```
+   sh install.sh
+   ```
+   If it says a folder is not on your PATH, add the line it shows to `~/.zshrc` or `~/.bashrc`
+   and open a new terminal.
+3. Check that it worked (it prints the version):
+   ```
+   thread --version
+   ```
+4. Create your vault and start the service automatically at every login:
+   ```
+   thread setup
+   ```
+
+### Windows
+
+Windows is less tested: installing, `thread setup` and `thread serve` were checked on Windows 11,
+the full browser flow was not. Open **PowerShell** and run these one at a time:
+
+1. Make a folder for the program:
+   ```
+   py -m venv "$env:USERPROFILE\threadvault"
+   cd "$env:USERPROFILE\threadvault\Scripts"
+   ```
+2. Install it (for a newer version, use the newest wheel link from the
+   [Releases page](https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases)):
+   ```
+   .\python.exe -m pip install "threadvault[recommended] @ https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases/download/v0.1.0/threadvault-0.1.0-py3-none-any.whl"
+   ```
+3. Create your vault:
+   ```
+   .\thread.exe setup
+   ```
+4. Start the service, and leave this window open while you save from the browser:
+   ```
+   .\thread.exe serve
+   ```
+
+Automatic start at login (`thread setup`) is macOS and Linux only, so on Windows run
+`thread serve` yourself each time.
+
+### Any other system
+
+`pip install "threadvault[recommended] @ <URL of a release wheel or source zip>"`. The wheel and
+source zip are on the [Releases page](https://github.com/ugnedirm/kai-nieko-kito-nelieka-mums/releases).
+
+### Then: the browser extension
+
+Install it from the store, or from the zip on the Releases page: see
+[The browser extension](#the-browser-extension).
+
+### Upgrade or remove
+
+| | macOS and Linux | Windows |
+|---|---|---|
+| Upgrade | run `sh install.sh` again | run step 2 again with the newer wheel link |
+| Remove the program | `sh install.sh --uninstall` | delete the folder `%USERPROFILE%\threadvault` |
+
+Removing the program never touches your saved threads.
+
+Maintainers: see `docs/RELEASING.md` (releases, store listings and what is still open) and
+`docs/PRIVACY.md`.
 
 ### From source (development)
 
@@ -86,9 +148,15 @@ pip install -e ".[dev,ui]"
 cd extension && npm run build && cd ..
 ```
 
-Optional extras: `recommended` (PDF cleaning, keychain signing, the Claude Desktop connector, token
-counts), `keychain`, `llm` (the second-opinion tool), `privacy` (extra name detection), `agent`.
-Example: `pip install -e ".[recommended,llm]"`.
+Optional extras, for example `pip install -e ".[recommended,llm]"`:
+
+| Extra | Adds |
+|---|---|
+| `recommended` | PDF cleaning, keychain signing, the Claude Desktop connector, token counts |
+| `keychain` | keychain signing only |
+| `llm` | the second-opinion tool |
+| `privacy` | extra name detection |
+| `agent` | the handover agent |
 
 Every new terminal window needs `source .venv/bin/activate` first. When you paste commands into the
 macOS terminal, leave out lines that start with `#`.
