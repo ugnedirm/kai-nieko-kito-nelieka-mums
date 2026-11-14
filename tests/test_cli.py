@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -93,7 +94,9 @@ def test_export_refuses_unlisted_destination(tmp_path: Path) -> None:
 def test_export_redacts_and_blocks(tmp_path: Path) -> None:
     out = tmp_path / "x.txt"
     r = runner.invoke(app, [*V, "export", "thr_full0001", "local", str(out)])
-    assert r.exit_code == 0 and out.stat().st_mode & 0o777 == 0o600
+    assert r.exit_code == 0 and out.exists()
+    if sys.platform != "win32":  # Windows has no POSIX permission bits to check
+        assert out.stat().st_mode & 0o777 == 0o600
     again = runner.invoke(app, [*V, "export", "thr_full0001", "local", str(out)])
     assert again.exit_code == 1  # never overwrite
     r = runner.invoke(app, [*V, "export", "thr_secrets01", "openai", str(tmp_path / "y.txt")])
