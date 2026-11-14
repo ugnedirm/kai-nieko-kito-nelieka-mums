@@ -120,7 +120,7 @@ _CLAIM_PATTERNS = (
     ("claims a permission or approval", re.compile(
         # "approved/allowed ..." only when aimed at the AI or at a risky action, so a normal
         # decision ("we allowed 2 days for Porto", "user approved the budget") is not flagged.
-        r"\b(?:approved|authori[sz]ed|granted|allowed|permitted|consented)\s+(?:to\s+)?"
+        r"\b(?:approved|authori[sz]ed|granted|allowed|permitted|consented)\s+(?:(?:to|that)\s+)?"
         r"(?:you|the\s+(?:ai|assistant|agent|model|tool)s?|claude|gpt|access|full\s+access|"
         r"(?:delet|remov|run|execut|send|shar|upload|push|deploy|install|transfer|pay|wip)\w*)\b"
         r"|\b(?:permission|approval|consent|authori[sz]ation)\s+(?:is|was|has\s+been|had\s+been)\s+"

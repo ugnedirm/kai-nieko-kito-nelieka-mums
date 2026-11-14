@@ -10,6 +10,7 @@ Tool results and errors never contain matched secrets (CLAUDE.md rule 3).
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -46,6 +47,10 @@ DEFAULT_CLIENT = "claude-desktop"
 DEFAULT_DESTINATION = "anthropic"
 MAX_TEXT_FILE_CHARS = 200_000
 ROLES = ("user", "assistant", "system", "tool")
+MAX_MESSAGE_CHARS = 200_000  # message.schema.json content maxLength
+MAX_REPLY_CHARS = 400_000
+_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")  # common.schema.json id
+_HASH = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 Reviewer = Callable[[str], Awaitable[bool]]
 
@@ -90,6 +95,8 @@ class ConnectorTools:
         return ToolError(code)
 
     def _known_thread(self, action: str, thread_id: str) -> None:
+        if not isinstance(thread_id, str) or not _ID.fullmatch(thread_id):
+            raise self._fail(action, None, "bad thread id")
         if thread_id not in {t.thread_id for t in self._vault.list_threads()}:
             raise self._fail(action, None, "unknown thread")
 
@@ -98,6 +105,8 @@ class ConnectorTools:
         ids = [b["branch_id"] for b in branches]
         if branch_id is None:
             return str(ids[0])
+        if not isinstance(branch_id, str) or not _ID.fullmatch(branch_id):
+            raise self._fail(action, thread_id, "bad branch id")
         if branch_id not in ids:
             raise self._fail(action, thread_id, "unknown branch")
         return branch_id
@@ -161,6 +170,8 @@ class ConnectorTools:
         bid = self._branch("append", thread_id, branch_id)
         if role not in ROLES:
             raise self._fail("append", thread_id, "bad role")
+        if not isinstance(text, str) or not text or len(text) > MAX_MESSAGE_CHARS:
+            raise self._fail("append", thread_id, "text empty or too long")
         if self._vault.load_thread(thread_id).manifest["mode"] != "full":
             raise self._fail("append", thread_id, "thread stores handovers only")
         if self._pseudonymized():  # the AI saw [PERSON_1]; the vault keeps the real name
@@ -183,9 +194,11 @@ class ConnectorTools:
         if not self._profile.get("allow_attachments"):
             self._audit("get_file", "denied", None, "attachments not allowed for this destination")
             raise ToolError("denied: attachments not allowed for this destination")
+        if not isinstance(sha256, str) or not _HASH.fullmatch(sha256):
+            raise self._fail("get_file", None, "bad file hash")
         try:
             data = self._vault.get_file(sha256)
-        except KeyError:
+        except (KeyError, FileNotFoundError):
             raise self._fail("get_file", None, "unknown or forgotten file") from None
         try:
             out = prepare_file(self._policy, self._dest, data, self._map)
@@ -205,6 +218,8 @@ class ConnectorTools:
         self._require("save_handover", "save_handover", thread_id)
         self._known_thread("save_handover", thread_id)
         bid = self._branch("save_handover", thread_id, branch_id)
+        if not isinstance(reply, str) or len(reply) > MAX_REPLY_CHARS:
+            raise self._fail("save_handover", thread_id, "reply too long")
         files = self._vault.load_thread(thread_id).manifest["files"]
         parsed = parse_reply(reply, {f["name"]: f["sha256"] for f in files})
         if not parsed.ok or parsed.content is None:
